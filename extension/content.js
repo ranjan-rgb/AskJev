@@ -1,26 +1,65 @@
 // src/defaults.ts
 var BASE_KEYWORDS = [
+  // money
   "buy",
   "purchase",
   "pay",
   "checkout",
   "place order",
   "confirm payment",
+  "order now",
+  "complete purchase",
+  "add card",
+  "wire",
+  "payout",
+  "transfer",
+  "withdraw",
+  "deposit",
+  "subscribe",
+  "unsubscribe",
+  "cancel subscription",
+  "upgrade",
+  "downgrade",
+  // destroy / mutate
   "delete",
   "remove forever",
   "destroy",
+  "erase",
+  "wipe",
+  "purge",
+  "archive",
+  "revoke",
+  "disable",
+  "deactivate",
+  "terminate",
+  "close account",
+  "reset",
+  // communicate / commit
   "send",
   "submit",
+  "publish",
+  "post",
+  "share",
+  "invite",
+  "confirm",
+  "accept",
+  "agree",
+  "authorize",
   "approve",
+  "grant access",
+  // ship / prod
   "deploy",
   "merge",
-  "transfer",
-  "withdraw",
-  "unsubscribe",
-  "cancel subscription",
-  "wire",
-  "payout"
+  "release",
+  "promote",
+  "roll out",
+  "execute",
+  "run workflow",
+  "i understand",
+  "yes, delete",
+  "permanently"
 ];
+var DESTRUCTIVE_CLASS_RE = /\b(danger|destructive|error|warning|btn-danger|btn-error|bg-red|text-red)\b/i;
 
 // src/content.ts
 if (!window.__askjevLoaded) {
@@ -60,7 +99,16 @@ if (!window.__askjevLoaded) {
     const label = labelFor(clickable);
     const href = clickable instanceof HTMLAnchorElement ? clickable.href || "" : "";
     const re = riskRegex();
-    return re.test(label) || re.test(href);
+    if (re.test(label) || re.test(href)) return true;
+    const className = typeof clickable.className === "string" ? clickable.className : "";
+    if (DESTRUCTIVE_CLASS_RE.test(className)) return true;
+    const isSubmit = clickable instanceof HTMLInputElement && (clickable.type === "submit" || clickable.type === "button") || clickable instanceof HTMLButtonElement && (clickable.type === "submit" || clickable.type === "button");
+    const inForm = Boolean(clickable.closest("form"));
+    const paranoid = settingsCache.sensitivity === "paranoid" || settingsCache.gateFormSubmits === true;
+    if (paranoid && isSubmit && inForm) return true;
+    const generic = /^(ok|yes|continue|next|done|save|apply|go)$/i.test(label.trim());
+    if (isSubmit && inForm && generic) return true;
+    return false;
   }, pageSnippet = function() {
     return {
       title: document.title || "",

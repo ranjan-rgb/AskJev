@@ -7,6 +7,7 @@ async function loadOptions() {
   document.getElementById("allowlist").value = (s.allowlist || []).join("\n");
   document.getElementById("enabled").checked = s.enabled !== false;
   document.getElementById("confirmAsk").checked = s.requireConfirmOnAsk !== false;
+  document.getElementById("gateForms").checked = s.gateFormSubmits === true;
 }
 document.getElementById("save").addEventListener("click", () => {
   void (async () => {
@@ -21,6 +22,7 @@ document.getElementById("save").addEventListener("click", () => {
       allowlist,
       enabled: document.getElementById("enabled").checked,
       requireConfirmOnAsk: document.getElementById("confirmAsk").checked,
+      gateFormSubmits: document.getElementById("gateForms").checked,
       model: "jev-latest"
     });
     document.getElementById("status").textContent = "saved";

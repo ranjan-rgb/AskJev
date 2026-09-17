@@ -1,32 +1,32 @@
 # AskJev
 
-**Ask TypeSafe Jev before dangerous clicks — on every site.**
+**Ask TypeSafe Jev before dangerous clicks — on every website.**
 
-Chrome MV3 extension written in **TypeScript**. Not a browser agent. AskJev decides **proceed / block / ask** using [TypeSafe Jev](https://docs.typesafe.ai/introduction).
+Chrome MV3 + TypeScript. Not a browser agent. Runs on **`<all_urls>`**. Jev decides **proceed / block / ask**.
 
-## How it connects to the AI
+This is not a pay-button toy. AskJev watches high-impact actions across the web: delete, send, publish, deploy, revoke, confirm, authorize, form submits, destructive UI — plus payments. You allowlist only the hosts you trust.
 
-1. Paste your TypeSafe API key in Options.
-2. Risky click (pay / delete / send / approve) is frozen on **every site**.
-3. Background worker → `POST https://api.typesafe.ai/v1/systemone` with your key.
-4. One call: irreversible (noul) + risk (score) + action (choice).
-5. Overlay → proceed / block / ask.
+## How AI connects
 
-No AskJev server.
+1. TypeSafe API key in Options  
+2. Risky click frozen on any site  
+3. `POST https://api.typesafe.ai/v1/systemone` (noul + score + choice)  
+4. Overlay → proceed / block / ask  
 
-## Develop
+No AskJev backend.
+
+## Modes
+
+- **Chill / Balanced** — broad keyword + destructive UI + generic form confirms  
+- **Paranoid** or **Gate all form submits** — also intercepts form submits (noisier)
+
+## Develop (on this machine)
 
 ```bash
-npm install
-npm run build
-npm run typecheck
+npm install && npm run build && npm run typecheck
 ```
 
 Load unpacked → `extension/`
-
-## All sites
-
-`content_scripts.matches = ["<all_urls>"]`. Allowlist is the only opt-out.
 
 ## License
 
