@@ -1,10 +1,17 @@
 {
   "name": "askjev",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "description": "AskJev \u2014 Jev holds fire on dangerous browser clicks",
+  "description": "AskJev — ask TypeSafe Jev before dangerous browser clicks",
   "scripts": {
-    "pack": "cd extension && zip -r ../store/askjev-1.0.0.zip . -x '*.DS_Store'",
-    "demo": "python3 -m http.server 8765 --directory demo"
+    "build": "node scripts/build.mjs",
+    "pack": "npm run build && cd extension && zip -r ../store/askjev-1.1.0.zip . -x '*.DS_Store' -x '*.map'",
+    "demo": "python3 -m http.server 8765 --directory demo",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.3"
   }
 }
