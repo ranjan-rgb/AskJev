@@ -1,20 +1,45 @@
+function setText(id: string, text: string): void {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function setClass(id: string, className: string): void {
+  const el = document.getElementById(id);
+  if (el) el.className = className;
+}
+
 async function loadPopup(): Promise<void> {
   const s = await chrome.storage.sync.get(null);
+  const armed = s.enabled !== false;
   const en = document.getElementById("en") as HTMLButtonElement;
-  const on = s.enabled !== false;
-  en.classList.toggle("on", on);
-  (document.getElementById("b") as HTMLElement).textContent = String(
-    s.stats?.blocked || 0,
-  );
-  (document.getElementById("a") as HTMLElement).textContent = String(
-    s.stats?.asked || 0,
-  );
-  (document.getElementById("p") as HTMLElement).textContent = String(
-    s.stats?.proceeded || 0,
-  );
-  (document.getElementById("key") as HTMLElement).textContent = s.apiKey
-    ? "key set"
-    : "no key";
+  en.classList.toggle("on", armed);
+  en.setAttribute("aria-pressed", armed ? "true" : "false");
+  en.textContent = armed ? "Armed" : "Disarmed";
+
+  setText("b", String(s.stats?.blocked || 0));
+  setText("a", String(s.stats?.asked || 0));
+  setText("p", String(s.stats?.proceeded || 0));
+
+  const hasKey = Boolean(s.apiKey && String(s.apiKey).trim());
+  setText("key", hasKey ? "Set" : "Missing");
+  setClass("key", hasKey ? "v ok" : "v warn");
+
+  const bridgeOn = Boolean(s.bridgeEnabled);
+  const token = Boolean(s.bridgeToken && String(s.bridgeToken).trim());
+  let bridgeLabel = "Off";
+  let bridgeClass = "v bad";
+  if (bridgeOn && token) {
+    bridgeLabel = "Armed";
+    bridgeClass = "v ok";
+  } else if (bridgeOn && !token) {
+    bridgeLabel = "No token";
+    bridgeClass = "v warn";
+  }
+  setText("bridge", bridgeLabel);
+  setClass("bridge", bridgeClass);
+
+  setText("mode", bridgeOn ? "Agent" : "Guard");
+  setClass("mode", "v ok");
 }
 
 document.getElementById("en")!.addEventListener("click", () => {
@@ -30,11 +55,17 @@ document.getElementById("opts")!.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
 
-void loadPopup();
-
 document.getElementById("auto")?.addEventListener("click", () => {
   void (async () => {
     const win = await chrome.windows.getCurrent();
     if (win.id != null) await chrome.sidePanel.open({ windowId: win.id });
   })();
 });
+
+document.getElementById("docs")?.addEventListener("click", () => {
+  void chrome.tabs.create({
+    url: "https://github.com/ranjan2829/AskJev/blob/main/docs/AGENT-BRIDGE.md",
+  });
+});
+
+void loadPopup();
