@@ -21,7 +21,7 @@ Three modes:
 3. Sensitivity: `chill` | `balanced` | `paranoid`
 4. Custom keywords + allowlist (allowlist = opt-out only)
 5. Popup → Open Autopilot for goal-driven runs
-6. Optional: Options → Agent bridge → generate token → `ASKJEV_TOKEN=… npx askjev-mcp` → paste Claude/Cursor MCP JSON from AGENT-BRIDGE.md
+6. Optional: Options → Auto-connect → copy/download Claude/Cursor config → restart client (see AGENT-BRIDGE.md). No daily terminal.
 
 ## Extend safely
 
