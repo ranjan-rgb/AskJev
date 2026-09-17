@@ -1,109 +1,147 @@
 (() => {
-  const RISK_RE =
-    /\b(buy|purchase|pay|checkout|confirm payment|place order|delete|remove forever|destroy|send|submit|approve|deploy|merge|transfer|withdraw|unsubscribe|cancel subscription)\b/i;
+  if (window.__holdfireLoaded) return;
+  window.__holdfireLoaded = true;
 
+  const BASE = [
+    "buy", "purchase", "pay", "checkout", "place order", "confirm payment",
+    "delete", "remove forever", "destroy", "send", "submit", "approve",
+    "deploy", "merge", "transfer", "withdraw", "unsubscribe",
+    "cancel subscription", "wire", "payout",
+  ];
+
+  let settingsCache = {
+    enabled: true,
+    customKeywords: [],
+    allowlist: [],
+    hasKey: false,
+  };
   let busy = false;
-  let overlayEl = null;
+  let overlayHost = null;
+  let passThroughUntil = 0;
+
+  function refreshSettings() {
+    try {
+      chrome.runtime.sendMessage({ type: "holdfire.getSettings" }, (resp) => {
+        if (chrome.runtime.lastError || !resp?.ok) return;
+        settingsCache = { ...settingsCache, ...resp.settings };
+      });
+    } catch {
+      /* extension context invalidated */
+    }
+  }
+  refreshSettings();
+  setInterval(refreshSettings, 5000);
+
+  function hostAllowed(hostname) {
+    const list = settingsCache.allowlist || [];
+    return list.some((d) => hostname === d || hostname.endsWith(`.${d}`));
+  }
+
+  function riskRegex() {
+    const extra = (settingsCache.customKeywords || [])
+      .map((k) => String(k).trim())
+      .filter(Boolean);
+    const all = [...BASE, ...extra].map((k) =>
+      k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+    );
+    return new RegExp(`\\b(${all.join("|")})\\b`, "i");
+  }
 
   function labelFor(el) {
     if (!(el instanceof Element)) return "";
     const aria = el.getAttribute("aria-label");
-    if (aria) return aria.trim();
-    const text = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim();
-    if (text) return text.slice(0, 120);
+    if (aria) return aria.trim().slice(0, 160);
+    const text = (el.innerText || el.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (text) return text.slice(0, 160);
     if (el instanceof HTMLInputElement) {
-      return (el.value || el.name || el.type || "").slice(0, 120);
+      return (el.value || el.name || el.type || "").slice(0, 160);
     }
     return el.tagName;
   }
 
+  function clickableFrom(el) {
+    return (
+      el.closest(
+        "button, a, [role='button'], input[type='submit'], input[type='button']",
+      ) || el
+    );
+  }
+
   function isRiskTarget(el) {
     if (!(el instanceof Element)) return false;
-    const clickable =
-      el.closest("button, a, [role='button'], input[type='submit'], input[type='button']") ||
-      el;
+    const clickable = clickableFrom(el);
     const label = labelFor(clickable);
     const href =
       clickable instanceof HTMLAnchorElement ? clickable.href || "" : "";
-    return RISK_RE.test(label) || RISK_RE.test(href);
+    const re = riskRegex();
+    return re.test(label) || re.test(href);
   }
 
   function pageSnippet() {
-    const title = document.title || "";
-    const url = location.href;
-    const h1 = document.querySelector("h1")?.innerText?.slice(0, 160) || "";
-    const body = (document.body?.innerText || "").replace(/\s+/g, " ").slice(0, 1200);
-    return { title, url, h1, body };
-  }
-
-  function ensureOverlay() {
-    if (overlayEl) return overlayEl;
-    overlayEl = document.createElement("div");
-    overlayEl.id = "veto-overlay";
-    overlayEl.attachShadow({ mode: "open" });
-    const style = document.createElement("style");
-    style.textContent = `
-      .wrap {
-        position: fixed; inset: 0; z-index: 2147483647;
-        background: rgba(9,9,11,.72);
-        display: flex; align-items: center; justify-content: center;
-        font-family: ui-sans-serif, system-ui, sans-serif;
-      }
-      .card {
-        width: min(420px, 92vw);
-        background: #09090b;
-        color: #fafafa;
-        border: 1px solid #27272a;
-        border-radius: 14px;
-        padding: 18px;
-        box-shadow: 0 20px 60px rgba(0,0,0,.5);
-      }
-      h1 { font-size: 16px; margin: 0 0 8px; }
-      .muted { color: #a1a1aa; font-size: 12px; margin: 0 0 12px; line-height: 1.4; }
-      .row { display: flex; justify-content: space-between; font-size: 13px; margin: 6px 0; }
-      .val { color: #fafafa; font-variant-numeric: tabular-nums; }
-      .btns { display: flex; gap: 8px; margin-top: 14px; }
-      button {
-        flex: 1; border: 0; border-radius: 8px; padding: 10px; font-weight: 600; cursor: pointer;
-      }
-      .allow { background: #fafafa; color: #09090b; }
-      .block { background: #27272a; color: #fafafa; }
-      .err { color: #fb7185; font-size: 12px; margin-top: 8px; }
-    `;
-    overlayEl.shadowRoot.appendChild(style);
-    const root = document.createElement("div");
-    root.className = "wrap";
-    root.innerHTML = `<div class="card"><h1>Veto</h1><p class="muted" id="m"></p><div id="stats"></div><div class="btns" id="btns"></div><div class="err" id="err"></div></div>`;
-    overlayEl.shadowRoot.appendChild(root);
-    document.documentElement.appendChild(overlayEl);
-    return overlayEl;
+    return {
+      title: document.title || "",
+      url: location.href,
+      h1: document.querySelector("h1")?.innerText?.slice(0, 160) || "",
+      body: (document.body?.innerText || "")
+        .replace(/\s+/g, " ")
+        .slice(0, 1400),
+    };
   }
 
   function hideOverlay() {
-    overlayEl?.remove();
-    overlayEl = null;
+    overlayHost?.remove();
+    overlayHost = null;
   }
 
-  function showOverlay({ label, decision, error, onAllow, onBlock }) {
-    const root = ensureOverlay().shadowRoot;
-    root.getElementById("m").textContent = `Click “${label}” paused for Jev.`;
-    const stats = root.getElementById("stats");
-    const err = root.getElementById("err");
-    const btns = root.getElementById("btns");
+  function showOverlay({ label, decision, error, statusText, onAllow, onBlock }) {
+    hideOverlay();
+    overlayHost = document.createElement("div");
+    overlayHost.id = "holdfire-root";
+    const shadow = overlayHost.attachShadow({ mode: "open" });
+    shadow.innerHTML = `
+      <style>
+        .wrap{position:fixed;inset:0;z-index:2147483647;background:rgba(9,9,11,.78);display:flex;align-items:center;justify-content:center;font-family:ui-sans-serif,system-ui,-apple-system,sans-serif}
+        .card{width:min(440px,92vw);background:#09090b;color:#fafafa;border:1px solid #27272a;border-radius:16px;padding:20px;box-shadow:0 24px 80px rgba(0,0,0,.55)}
+        .brand{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#a1a1aa;margin:0 0 8px}
+        h1{font-size:17px;margin:0 0 6px;font-weight:650}
+        .muted{color:#a1a1aa;font-size:12px;margin:0 0 14px;line-height:1.45}
+        .row{display:flex;justify-content:space-between;gap:12px;font-size:13px;margin:7px 0;padding:8px 10px;background:#18181b;border-radius:10px}
+        .val{font-variant-numeric:tabular-nums;color:#fafafa;font-weight:600}
+        .btns{display:flex;gap:8px;margin-top:16px}
+        button{flex:1;border:0;border-radius:10px;padding:11px;font-weight:650;cursor:pointer;font-size:13px}
+        .allow{background:#fafafa;color:#09090b}
+        .block{background:#27272a;color:#fafafa}
+        .err{color:#fb7185;font-size:12px;margin-top:10px;line-height:1.4}
+        .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#27272a;font-size:11px;margin-left:6px}
+      </style>
+      <div class="wrap"><div class="card">
+        <p class="brand">Holdfire · powered by Jev</p>
+        <h1>Hold fire on this click</h1>
+        <p class="muted">“${escapeHtml(label)}” ${statusText ? `<span class="pill">${escapeHtml(statusText)}</span>` : ""}</p>
+        <div id="stats"></div>
+        <div class="btns" id="btns"></div>
+        <div class="err" id="err"></div>
+      </div></div>
+    `;
+    const stats = shadow.getElementById("stats");
+    const err = shadow.getElementById("err");
+    const btns = shadow.getElementById("btns");
     err.textContent = error || "";
     if (decision) {
       const irr = decision.irreversible?.noul;
       const risk = decision.risk?.score;
       const action = decision.action?.choice;
+      const conf = decision.action?.confidence;
       stats.innerHTML = `
-        <div class="row"><span>irreversible</span><span class="val">${irr != null ? Number(irr).toFixed(3) : "—"}</span></div>
-        <div class="row"><span>risk score</span><span class="val">${risk != null ? Number(risk).toFixed(2) : "—"}</span></div>
-        <div class="row"><span>jev says</span><span class="val">${action || "—"}</span></div>
+        <div class="row"><span>irreversible</span><span class="val">${fmt(irr, 3)}</span></div>
+        <div class="row"><span>risk</span><span class="val">${fmt(risk, 2)}</span></div>
+        <div class="row"><span>jev</span><span class="val">${action || "—"} ${conf != null ? `(${fmt(conf, 2)})` : ""}</span></div>
       `;
-    } else {
+    } else if (!error) {
       stats.innerHTML = `<div class="muted">asking jev…</div>`;
     }
-    btns.innerHTML = "";
     const allow = document.createElement("button");
     allow.className = "allow";
     allow.textContent = "Allow once";
@@ -119,11 +157,23 @@
       onBlock();
     };
     btns.append(allow, block);
+    document.documentElement.appendChild(overlayHost);
+  }
+
+  function fmt(n, d) {
+    if (n == null || Number.isNaN(Number(n))) return "—";
+    return Number(n).toFixed(d);
+  }
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   function normalizeAnswers(result) {
-    // Support both { answers: {...} } and flat question maps
-    const a = result?.answers ?? result?.questions ?? result;
+    const a = result?.answers ?? result;
     if (!a || typeof a !== "object") return null;
     return {
       irreversible: a.irreversible,
@@ -132,37 +182,64 @@
     };
   }
 
-  async function decide(label) {
-    const snippet = pageSnippet();
+  function decide(label) {
+    const sn = pageSnippet();
     const state = [
-      `url: ${snippet.url}`,
-      `title: ${snippet.title}`,
-      `h1: ${snippet.h1}`,
+      `url: ${sn.url}`,
+      `title: ${sn.title}`,
+      `h1: ${sn.h1}`,
       `button_label: ${label}`,
-      `page_text: ${snippet.body}`,
+      `page_text: ${sn.body}`,
     ].join("\n");
-
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ type: "veto.decide", state }, (resp) => {
-        if (chrome.runtime.lastError) {
-          resolve({ ok: false, error: chrome.runtime.lastError.message });
-          return;
-        }
-        resolve(resp);
-      });
+      try {
+        chrome.runtime.sendMessage(
+          { type: "holdfire.decide", state },
+          (resp) => {
+            if (chrome.runtime.lastError) {
+              resolve({ ok: false, error: chrome.runtime.lastError.message });
+              return;
+            }
+            resolve(resp);
+          },
+        );
+      } catch (e) {
+        resolve({ ok: false, error: String(e?.message ?? e) });
+      }
     });
+  }
+
+  function fireClick(el) {
+    passThroughUntil = Date.now() + 800;
+    busy = true;
+    el.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true, view: window }),
+    );
+    setTimeout(() => {
+      busy = false;
+    }, 400);
+  }
+
+  function stat(key) {
+    try {
+      chrome.runtime.sendMessage({ type: "holdfire.stat", key });
+    } catch {
+      /* ignore */
+    }
   }
 
   document.addEventListener(
     "click",
     async (ev) => {
+      if (Date.now() < passThroughUntil) return;
       if (busy) return;
+      if (!settingsCache.enabled) return;
+      if (hostAllowed(location.hostname)) return;
       const t = ev.target;
       if (!(t instanceof Element)) return;
       if (!isRiskTarget(t)) return;
-      const clickable =
-        t.closest("button, a, [role='button'], input[type='submit'], input[type='button']") ||
-        t;
+
+      const clickable = clickableFrom(t);
       const label = labelFor(clickable) || "unknown";
 
       ev.preventDefault();
@@ -173,6 +250,7 @@
       showOverlay({
         label,
         decision: null,
+        statusText: "checking",
         onAllow: () => {},
         onBlock: () => {},
       });
@@ -180,21 +258,23 @@
       const resp = await decide(label);
       busy = false;
 
+      if (resp?.bypass) {
+        hideOverlay();
+        fireClick(clickable);
+        return;
+      }
+
       if (!resp?.ok) {
         const err =
           resp?.error === "missing_api_key"
-            ? "Add your TypeSafe API key in the Veto extension popup."
+            ? "Add your TypeSafe API key in Holdfire options (extension icon → Options)."
             : `Jev error: ${resp?.error || "unknown"}`;
         showOverlay({
           label,
           decision: null,
           error: err,
-          onAllow: () => {
-            // user overrides
-            clickable.dispatchEvent(
-              new MouseEvent("click", { bubbles: true, cancelable: true, view: window }),
-            );
-          },
+          statusText: "error",
+          onAllow: () => fireClick(clickable),
           onBlock: () => {},
         });
         return;
@@ -203,32 +283,53 @@
       const decision = normalizeAnswers(resp.result);
       const choice = decision?.action?.choice;
       const irr = Number(decision?.irreversible?.noul ?? 0);
-      const autoBlock = choice === "block" || (choice === "ask" && irr >= 0.7);
+      const conf = Number(decision?.action?.confidence ?? 0);
 
-      if (choice === "proceed" && !autoBlock) {
-        hideOverlay();
-        // allow synthetic follow-up without re-intercept storm
-        const prev = busy;
-        busy = true;
-        clickable.click();
-        setTimeout(() => {
-          busy = prev;
-        }, 300);
+      if (choice === "proceed" && conf >= 0.45 && irr < 0.55) {
+        stat("proceeded");
+        if (resp.settings?.showOverlayOnProceed) {
+          showOverlay({
+            label,
+            decision,
+            statusText: "proceed",
+            onAllow: () => fireClick(clickable),
+            onBlock: () => {},
+          });
+        } else {
+          hideOverlay();
+          fireClick(clickable);
+        }
         return;
       }
 
+      if (choice === "block" || (choice === "ask" && irr >= 0.65)) {
+        stat("blocked");
+        showOverlay({
+          label,
+          decision,
+          statusText: "blocked",
+          error: choice === "block" ? "Jev hard-blocked this click." : undefined,
+          onAllow: () => {
+            stat("proceeded");
+            fireClick(clickable);
+          },
+          onBlock: () => {},
+        });
+        return;
+      }
+
+      stat("asked");
       showOverlay({
         label,
         decision,
-        error: autoBlock ? "hard block from jev" : undefined,
+        statusText: "confirm",
         onAllow: () => {
-          busy = true;
-          clickable.click();
-          setTimeout(() => {
-            busy = false;
-          }, 300);
+          stat("proceeded");
+          fireClick(clickable);
         },
-        onBlock: () => {},
+        onBlock: () => {
+          stat("blocked");
+        },
       });
     },
     true,

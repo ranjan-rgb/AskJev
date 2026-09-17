@@ -1,26 +1,40 @@
-# Veto
+# Holdfire
 
-Chrome extension: **TypeSafe Jev** vetoes irreversible clicks before they fire.
+**Jev holds fire on dangerous clicks — pay, delete, send, approve — before they land.**
 
-Not a browser agent. The page stays under human (or agent) control. Veto only decides **proceed / block / ask** on pay, buy, delete, send, approve, deploy.
+Chrome extension. Not a browser agent. The page stays yours. Holdfire only decides **proceed / block / ask** using [TypeSafe Jev](https://docs.typesafe.ai/introduction) (System One).
 
 ## Why
 
-Feed is full of “Jev drives Flights.” The missing product is a **decision gate on dangerous actions**.
+The feed is full of “Jev drives the browser.” Holdfire is the opposite product: **a decision gate on irreversible actions**. One misclick on Pay / Delete / Deploy and you’re done. Holdfire pauses the click, asks Jev once (Noul + Score + Choice), shows probabilities, then allows or blocks.
 
-## Load unpacked
+## Install (dev)
 
-1. Open `chrome://extensions` → Developer mode → Load unpacked → select `extension/`
-2. Click the Veto icon → paste `TYPESAFE_API_KEY`
-3. Open `demo/index.html` (or `npm run demo` → http://127.0.0.1:8765)
-4. Click **Pay now with card** — overlay shows irreversible / risk / choice
+1. Chrome → `chrome://extensions` → Developer mode → **Load unpacked** → select `extension/`
+2. Options → paste your TypeSafe API key → Save
+3. Open `demo/index.html` or run `npm run demo` → click **Pay now with card**
 
-## Jev questions (one call)
+## Pack for Chrome Web Store
 
-- **Noul** `irreversible` — money / delete / send / prod?
-- **Score** `risk` — 4-level danger rubric
-- **Choice** `action` — `proceed` | `block` | `ask`
+```bash
+npm run pack
+# → store/holdfire-1.0.0.zip
+```
 
-## Status
+## Privacy
 
-MVP scaffold. Needs live key smoke + GIF for X.
+API key stays in Chrome sync storage. Risky-click context (URL, title, snippet, button label) is sent only to `api.typesafe.ai`. No Holdfire backend. See `extension/privacy.html`.
+
+## Agent skill
+
+See `docs/AGENT.md` — drop into Claude Code / Cursor so an agent can configure keywords, sensitivity, and allowlists for you.
+
+## Stack
+
+- MV3 service worker + content script
+- TypeSafe `POST /v1/systemone` · model `jev-latest`
+- Zinc UI, zero telemetry by default
+
+## License
+
+MIT

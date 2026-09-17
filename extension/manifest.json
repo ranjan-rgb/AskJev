@@ -1,13 +1,29 @@
 {
   "manifest_version": 3,
-  "name": "Veto",
-  "version": "0.1.0",
-  "description": "Jev decides before irreversible clicks (pay, delete, send, approve).",
-  "permissions": ["storage", "activeTab"],
+  "name": "Holdfire",
+  "version": "1.0.0",
+  "description": "Jev holds fire on dangerous clicks — pay, delete, send, approve — before they land.",
+  "permissions": ["storage", "alarms"],
   "host_permissions": ["https://api.typesafe.ai/*"],
   "action": {
-    "default_title": "Veto",
-    "default_popup": "popup.html"
+    "default_title": "Holdfire",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
   },
   "background": {
     "service_worker": "background.js",
@@ -15,11 +31,10 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": ["http://*/*", "https://*/*", "file://*/*"],
       "js": ["content.js"],
       "run_at": "document_start",
-      "all_frames": false
+      "all_frames": true
     }
-  ],
-  "icons": {}
+  ]
 }
