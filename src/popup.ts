@@ -31,3 +31,10 @@ document.getElementById("opts")!.addEventListener("click", () => {
 });
 
 void loadPopup();
+
+document.getElementById("auto")?.addEventListener("click", () => {
+  void (async () => {
+    const win = await chrome.windows.getCurrent();
+    if (win.id != null) await chrome.sidePanel.open({ windowId: win.id });
+  })();
+});
