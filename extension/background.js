@@ -76,6 +76,92 @@ async function callJev(input) {
   return json;
 }
 
+// src/autopilot-jev.ts
+var ACTIONS = [
+  "CLICK",
+  "TYPE_TEXT",
+  "SELECT",
+  "SCROLL_DOWN",
+  "SCROLL_UP",
+  "WAIT",
+  "DONE",
+  "BLOCKED"
+];
+async function decideNextStep(input) {
+  const criteria = {
+    CLICK: "Click a visible control to progress the goal",
+    TYPE_TEXT: "Type text into an input/textarea (text comes from goal quotes or sidepanel)",
+    SELECT: "Choose from a dropdown",
+    SCROLL_DOWN: "Scroll down to reveal more",
+    SCROLL_UP: "Scroll up",
+    WAIT: "Wait for page to settle",
+    DONE: "Goal is complete \u2014 stop",
+    BLOCKED: "Cannot proceed safely or page is stuck"
+  };
+  const targets = input.elements.slice(0, 60);
+  const targetCriteria = { none: "No element needed (scroll/wait/done/blocked)" };
+  for (const e of targets) {
+    targetCriteria[`e${e.id}`] = `#${e.id} ${e.tag} "${e.name || e.value || e.href || e.type}"`;
+  }
+  const body = {
+    model: input.model || "jev-latest",
+    state: input.state,
+    questions: {
+      action: {
+        type: "choice",
+        instructions: "Pick the single next browser action to advance the user goal. Prefer DONE when finished. Prefer BLOCKED if unsafe or impossible.",
+        criteria
+      },
+      target: {
+        type: "choice",
+        instructions: "Pick the element id for CLICK/TYPE_TEXT/SELECT. Use none for scroll/wait/done/blocked.",
+        criteria: targetCriteria
+      },
+      irreversible: {
+        type: "noul",
+        instructions: "Would executing this next action cause lasting harm (pay, delete, send, publish, deploy, revoke, grant access)?"
+      },
+      goal_done: {
+        type: "noul",
+        instructions: "Is the user goal already satisfied on this page?"
+      }
+    }
+  };
+  const res = await fetch(SYSTEM_ONE_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${input.apiKey.trim()}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(`jev_http_${res.status}`);
+  const a = json.answers || {};
+  let action = a.action?.choice || "WAIT";
+  if (!ACTIONS.includes(action)) action = "WAIT";
+  const targetRaw = a.target?.choice || "none";
+  let targetId = null;
+  if (targetRaw.startsWith("e")) {
+    const n = Number(targetRaw.slice(1));
+    if (Number.isFinite(n)) targetId = n;
+  }
+  const irreversible = Number(a.irreversible?.noul ?? 0);
+  const goalDone = Number(a.goal_done?.noul ?? 0);
+  if (goalDone >= 0.85) action = "DONE";
+  return {
+    action,
+    targetId,
+    confidence: Number(a.action?.confidence ?? 0),
+    done: action === "DONE",
+    irreversible
+  };
+}
+function extractQuotedText(goal) {
+  const m = goal.match(/"([^"]+)"|'([^']+)'/);
+  return m?.[1] || m?.[2];
+}
+
 // src/background.ts
 async function getSettings() {
   const stored = await chrome.storage.sync.get(null);
@@ -147,6 +233,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   return void 0;
 });
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => void 0);
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
     void (async () => {
@@ -155,5 +242,112 @@ chrome.runtime.onInstalled.addListener((details) => {
       chrome.runtime.openOptionsPage();
     })();
   }
+});
+var autopilotRunning = false;
+async function getActiveTabId() {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tabs[0]?.id;
+}
+function broadcast(msg) {
+  void chrome.runtime.sendMessage(msg).catch(() => void 0);
+}
+async function runAutopilot(goal, typeText) {
+  const settings = await getSettings();
+  if (!settings.apiKey?.trim()) {
+    broadcast({
+      type: "askjev.autopilot.status",
+      status: "missing TypeSafe API key \u2014 open Options"
+    });
+    return;
+  }
+  autopilotRunning = true;
+  const maxSteps = 20;
+  for (let step = 1; step <= maxSteps && autopilotRunning; step++) {
+    const tabId = await getActiveTabId();
+    if (tabId == null) {
+      broadcast({ type: "askjev.autopilot.status", status: "no active tab" });
+      break;
+    }
+    broadcast({
+      type: "askjev.autopilot.log",
+      line: `step ${step}: snapshot`
+    });
+    const snap = await chrome.tabs.sendMessage(tabId, {
+      type: "askjev.dom.snapshot",
+      goal
+    });
+    if (!snap?.ok) {
+      broadcast({
+        type: "askjev.autopilot.log",
+        line: `snapshot failed: ${snap?.error || "unknown"}`
+      });
+      break;
+    }
+    let decision;
+    try {
+      decision = await decideNextStep({
+        apiKey: settings.apiKey,
+        state: snap.state,
+        elements: snap.elements,
+        model: settings.model
+      });
+    } catch (e) {
+      await bumpStat("errors");
+      broadcast({
+        type: "askjev.autopilot.log",
+        line: `jev error: ${e.message}`
+      });
+      break;
+    }
+    broadcast({
+      type: "askjev.autopilot.log",
+      line: `jev \u2192 ${decision.action} target=${decision.targetId ?? "none"} irr=${decision.irreversible.toFixed(2)}`
+    });
+    if (decision.done || decision.action === "DONE") {
+      broadcast({ type: "askjev.autopilot.status", status: "done" });
+      await bumpStat("proceeded");
+      break;
+    }
+    if (decision.action === "BLOCKED") {
+      broadcast({ type: "askjev.autopilot.status", status: "blocked by jev" });
+      await bumpStat("blocked");
+      break;
+    }
+    if (decision.irreversible >= 0.65) {
+      broadcast({
+        type: "askjev.autopilot.status",
+        status: `guard: irreversible (${decision.irreversible.toFixed(2)}) \u2014 stopped. Use Guard overlay or lower risk goal.`
+      });
+      await bumpStat("blocked");
+      break;
+    }
+    const text = typeText || extractQuotedText(goal) || void 0;
+    const exec = await chrome.tabs.sendMessage(tabId, {
+      type: "askjev.dom.execute",
+      action: decision.action,
+      targetId: decision.targetId,
+      text
+    });
+    broadcast({
+      type: "askjev.autopilot.log",
+      line: exec?.detail || "executed"
+    });
+    await new Promise((r) => setTimeout(r, 700));
+  }
+  autopilotRunning = false;
+  broadcast({ type: "askjev.autopilot.status", status: "idle" });
+}
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type === "askjev.autopilot.start") {
+    void runAutopilot(String(msg.goal || ""), msg.typeText);
+    sendResponse({ ok: true });
+    return true;
+  }
+  if (msg?.type === "askjev.autopilot.stop") {
+    autopilotRunning = false;
+    sendResponse({ ok: true });
+    return true;
+  }
+  return void 0;
 });
 //# sourceMappingURL=background.js.map

@@ -27,4 +27,10 @@ document.getElementById("opts").addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
 void loadPopup();
+document.getElementById("auto")?.addEventListener("click", () => {
+  void (async () => {
+    const win = await chrome.windows.getCurrent();
+    if (win.id != null) await chrome.sidePanel.open({ windowId: win.id });
+  })();
+});
 //# sourceMappingURL=popup.js.map

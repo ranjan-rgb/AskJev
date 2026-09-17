@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>AskJev Autopilot</title>
+  <style>
+    body{font-family:ui-sans-serif,system-ui,sans-serif;background:#09090b;color:#fafafa;margin:0;padding:16px}
+    h1{font-size:15px;margin:0 0 4px}
+    .sub{color:#a1a1aa;font-size:12px;margin:0 0 14px;line-height:1.4}
+    label{display:block;font-size:11px;color:#a1a1aa;margin:10px 0 4px}
+    textarea,input{width:100%;box-sizing:border-box;background:#18181b;border:1px solid #27272a;color:#fafafa;border-radius:10px;padding:10px;font:inherit}
+    textarea{min-height:90px;resize:vertical}
+    .row{display:flex;gap:8px;margin-top:12px}
+    button{flex:1;border:0;border-radius:10px;padding:10px;font-weight:650;cursor:pointer}
+    #run{background:#fafafa;color:#09090b}
+    #stop{background:#27272a;color:#fafafa}
+    #status{font-size:12px;color:#a1a1aa;margin-top:10px}
+    #log{margin-top:12px;font-size:11px;color:#a1a1aa;white-space:pre-wrap;max-height:50vh;overflow:auto;background:#18181b;border-radius:10px;padding:10px}
+  </style>
+</head>
+<body>
+  <h1>AskJev Autopilot</h1>
+  <p class="sub">Jev picks the next click/type/scroll on this tab. Guard still holds irreversible actions.</p>
+  <label for="goal">Goal</label>
+  <textarea id="goal" placeholder='e.g. open settings and find billing — put exact type text in "quotes"'></textarea>
+  <label for="typeText">Text to type (optional override)</label>
+  <input id="typeText" placeholder="used when Jev chooses TYPE_TEXT" />
+  <div class="row">
+    <button id="run">Run</button>
+    <button id="stop">Stop</button>
+  </div>
+  <div id="status">idle</div>
+  <div id="log"></div>
+  <script type="module" src="sidepanel.js"></script>
+</body>
+</html>

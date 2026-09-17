@@ -1,5 +1,12 @@
 import { BASE_KEYWORDS, DESTRUCTIVE_CLASS_RE } from "./defaults.js";
 import type { SystemOneResult } from "./jev.js";
+import {
+  clearAskjevIds,
+  executeAction,
+  formatSnapshotForJev,
+  snapshotElements,
+  type DomAction,
+} from "./dom.js";
 
 type SettingsCache = {
   enabled: boolean;
@@ -366,3 +373,27 @@ if (!window.__askjevLoaded) {
     true,
   );
 }
+
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type === "askjev.dom.snapshot") {
+    try {
+      clearAskjevIds();
+      const elements = snapshotElements(80);
+      const state = formatSnapshotForJev(String(msg.goal || ""), elements);
+      sendResponse({ ok: true, elements, state });
+    } catch (e) {
+      sendResponse({ ok: false, error: String((e as Error).message || e) });
+    }
+    return true;
+  }
+  if (msg?.type === "askjev.dom.execute") {
+    void executeAction({
+      action: msg.action as DomAction,
+      targetId: msg.targetId,
+      text: msg.text,
+    }).then((r) => sendResponse(r));
+    return true;
+  }
+  return undefined;
+});
