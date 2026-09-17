@@ -2,12 +2,22 @@ const goalEl = document.getElementById("goal") as HTMLTextAreaElement;
 const typeEl = document.getElementById("typeText") as HTMLInputElement;
 const logEl = document.getElementById("log") as HTMLElement;
 const statusEl = document.getElementById("status") as HTMLElement;
+const bridgeEl = document.getElementById("bridgeLine") as HTMLElement;
 const runBtn = document.getElementById("run") as HTMLButtonElement;
 const stopBtn = document.getElementById("stop") as HTMLButtonElement;
 
 function log(line: string): void {
   const t = new Date().toLocaleTimeString();
   logEl.textContent = `[${t}] ${line}\n` + logEl.textContent;
+}
+
+function setBridgeLine(snap?: { state?: string; detail?: string }): void {
+  if (!bridgeEl) return;
+  if (!snap?.state) {
+    bridgeEl.textContent = "bridge: off";
+    return;
+  }
+  bridgeEl.textContent = `bridge: ${snap.state}${snap.detail ? ` — ${snap.detail}` : ""}`;
 }
 
 runBtn.addEventListener("click", () => {
@@ -47,4 +57,16 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type === "askjev.autopilot.status") {
     statusEl.textContent = String(msg.status || "");
   }
+  if (msg?.type === "askjev.bridge.status") {
+    setBridgeLine(msg.bridge);
+  }
 });
+
+function pollBridge(): void {
+  chrome.runtime.sendMessage({ type: "askjev.bridge.status" }, (resp) => {
+    if (chrome.runtime.lastError || !resp?.ok) return;
+    setBridgeLine(resp.bridge);
+  });
+}
+pollBridge();
+setInterval(pollBridge, 4000);

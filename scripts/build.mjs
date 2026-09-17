@@ -25,11 +25,17 @@ await esbuild.build({
 const manifest = {
   manifest_version: 3,
   name: "AskJev",
-  version: "1.3.0",
+  version: "1.4.0",
   description:
-    "Jev autopilot for any website — plus a guard on irreversible clicks.",
+    "Jev autopilot for any website — plus a guard on irreversible clicks. Connect Claude/Cursor via MCP agent bridge.",
   permissions: ["storage", "alarms", "sidePanel", "activeTab", "tabs"],
-  host_permissions: ["https://api.typesafe.ai/*", "http://*/*", "https://*/*"],
+  host_permissions: [
+    "https://api.typesafe.ai/*",
+    "http://*/*",
+    "https://*/*",
+    "ws://127.0.0.1/*",
+    "ws://localhost/*",
+  ],
   action: {
     default_title: "AskJev",
     default_popup: "popup.html",

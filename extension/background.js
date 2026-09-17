@@ -8,7 +8,10 @@ var DEFAULTS = {
   showOverlayOnProceed: false,
   gateFormSubmits: false,
   model: "jev-latest",
-  stats: { blocked: 0, asked: 0, proceeded: 0, errors: 0 }
+  stats: { blocked: 0, asked: 0, proceeded: 0, errors: 0 },
+  bridgeEnabled: false,
+  bridgeToken: "",
+  bridgePort: 17373
 };
 
 // src/jev.ts
@@ -162,6 +165,253 @@ function extractQuotedText(goal) {
   return m?.[1] || m?.[2];
 }
 
+// src/bridge.ts
+var BRIDGE_PROTOCOL_VERSION = "1.0";
+function tokensEqual(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+var AgentBridgeClient = class {
+  ws = null;
+  settings = null;
+  handleRpc;
+  state = "disabled";
+  detail = "bridge off";
+  lastError;
+  reconnectAttempt = 0;
+  reconnectTimer = null;
+  pingTimer = null;
+  stopped = true;
+  onStatus;
+  constructor(handleRpc, onStatus) {
+    this.handleRpc = handleRpc;
+    this.onStatus = onStatus;
+  }
+  getSnapshot() {
+    return {
+      state: this.state,
+      detail: this.detail,
+      lastError: this.lastError,
+      reconnectAttempt: this.reconnectAttempt
+    };
+  }
+  /** Apply latest settings; start/stop/reconnect as needed. */
+  sync(settings) {
+    const prev = this.settings;
+    this.settings = settings;
+    if (!settings.bridgeEnabled || !settings.bridgeToken) {
+      this.stop();
+      this.setState("disabled", settings.bridgeEnabled ? "generate a pairing token" : "bridge off");
+      return;
+    }
+    const portChanged = prev && (prev.bridgePort !== settings.bridgePort || prev.bridgeToken !== settings.bridgeToken);
+    if (this.stopped || portChanged || this.state === "disabled" || this.state === "error") {
+      this.start();
+    }
+  }
+  start() {
+    this.stopped = false;
+    this.clearReconnect();
+    this.connect();
+  }
+  stop() {
+    this.stopped = true;
+    this.clearReconnect();
+    this.clearPing();
+    if (this.ws) {
+      try {
+        this.ws.close();
+      } catch {
+      }
+      this.ws = null;
+    }
+  }
+  connect() {
+    if (this.stopped || !this.settings?.bridgeEnabled || !this.settings.bridgeToken) {
+      return;
+    }
+    const port = this.settings.bridgePort || 17373;
+    const url = `ws://127.0.0.1:${port}`;
+    this.setState("connecting", `dialing ${url}`);
+    try {
+      if (this.ws) {
+        try {
+          this.ws.close();
+        } catch {
+        }
+      }
+      const ws = new WebSocket(url);
+      this.ws = ws;
+      ws.addEventListener("open", () => {
+        this.reconnectAttempt = 0;
+        this.setState("connected", "sending hello");
+        ws.send(
+          JSON.stringify({
+            type: "hello",
+            token: this.settings.bridgeToken,
+            role: "extension",
+            version: BRIDGE_PROTOCOL_VERSION
+          })
+        );
+        this.startPing();
+      });
+      ws.addEventListener("message", (ev) => {
+        void this.onMessage(String(ev.data || ""));
+      });
+      ws.addEventListener("close", () => {
+        this.clearPing();
+        this.ws = null;
+        if (!this.stopped) this.scheduleReconnect();
+      });
+      ws.addEventListener("error", () => {
+        this.lastError = "websocket error";
+      });
+    } catch (e) {
+      this.lastError = String(e.message || e);
+      this.scheduleReconnect();
+    }
+  }
+  async onMessage(raw) {
+    let msg;
+    try {
+      msg = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    const type = msg.type;
+    if (type === "hello") {
+      this.setState("paired", "paired with askjev-mcp");
+      return;
+    }
+    if (type === "pong") return;
+    if (type === "error") {
+      this.lastError = String(msg.message || msg.code || "error");
+      if (msg.code === "unauthorized") {
+        this.setState("error", "unauthorized \u2014 check pairing token");
+        this.stop();
+        this.stopped = false;
+      }
+      return;
+    }
+    if (type === "rpc") {
+      await this.onRpc(msg);
+    }
+  }
+  async onRpc(msg) {
+    const id = String(msg.id || "");
+    const token = String(msg.token || "");
+    const method = String(msg.method || "");
+    const params = msg.params || {};
+    const reply = (payload) => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(
+          JSON.stringify({
+            type: "rpc_result",
+            id,
+            ok: payload.ok,
+            result: payload.result,
+            error: payload.error
+          })
+        );
+      }
+    };
+    if (!this.settings || !tokensEqual(token, this.settings.bridgeToken)) {
+      reply({
+        ok: false,
+        error: { code: "unauthorized", message: "invalid pairing token" }
+      });
+      return;
+    }
+    try {
+      const result = await this.handleRpc(method, params);
+      reply({ ok: true, result });
+    } catch (e) {
+      const err = e;
+      reply({
+        ok: false,
+        error: {
+          code: err.code || "internal",
+          message: err.message || String(e)
+        }
+      });
+    }
+  }
+  /** Emit a fire-and-forget event to the MCP bridge (logs / status). */
+  emit(event, data) {
+    if (this.ws?.readyState === WebSocket.OPEN && this.settings?.bridgeToken) {
+      this.ws.send(
+        JSON.stringify({
+          type: "event",
+          event,
+          data,
+          token: this.settings.bridgeToken
+        })
+      );
+    }
+  }
+  scheduleReconnect() {
+    if (this.stopped) return;
+    this.reconnectAttempt += 1;
+    const delay = Math.min(3e4, 500 * 2 ** Math.min(this.reconnectAttempt, 6));
+    this.setState("backoff", `reconnect in ${Math.round(delay / 1e3)}s`);
+    this.clearReconnect();
+    this.reconnectTimer = setTimeout(() => this.connect(), delay);
+  }
+  clearReconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+  startPing() {
+    this.clearPing();
+    this.pingTimer = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN && this.settings?.bridgeToken) {
+        this.ws.send(
+          JSON.stringify({ type: "ping", token: this.settings.bridgeToken })
+        );
+      }
+    }, 2e4);
+  }
+  clearPing() {
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
+  }
+  setState(state, detail) {
+    this.state = state;
+    this.detail = detail;
+    this.onStatus?.(this.getSnapshot());
+  }
+};
+async function guardAct(input) {
+  const skip = input.action === "SCROLL_DOWN" || input.action === "SCROLL_UP" || input.action === "WAIT" || input.action === "DONE";
+  if (skip) return { blocked: false, irreversible: 0 };
+  const state = [
+    input.pageState,
+    `proposed_action: ${input.action} targetId=${input.targetId ?? "none"} text=${(input.text || "").slice(0, 80)}`
+  ].join("\n");
+  const result = await callJev({
+    state,
+    apiKey: input.apiKey,
+    model: input.model,
+    sensitivity: input.sensitivity
+  });
+  const irreversible = Number(result.answers?.irreversible?.noul ?? 0);
+  return { blocked: irreversible >= 0.65, irreversible };
+}
+function bridgeError(code, message) {
+  const e = new Error(message);
+  e.code = code;
+  return e;
+}
+
 // src/background.ts
 async function getSettings() {
   const stored = await chrome.storage.sync.get(null);
@@ -223,12 +473,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   if (msg?.type === "askjev.getSettings") {
     void getSettings().then((s) => {
-      const { apiKey, ...rest } = s;
+      const { apiKey, bridgeToken, ...rest } = s;
       sendResponse({
         ok: true,
-        settings: { ...rest, hasKey: Boolean(apiKey && String(apiKey).trim()) }
+        settings: {
+          ...rest,
+          hasKey: Boolean(apiKey && String(apiKey).trim()),
+          hasBridgeToken: Boolean(bridgeToken && String(bridgeToken).trim())
+        }
       });
     });
+    return true;
+  }
+  if (msg?.type === "askjev.bridge.status") {
+    sendResponse({ ok: true, bridge: bridgeClient.getSnapshot() });
     return true;
   }
   return void 0;
@@ -244,6 +502,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 var autopilotRunning = false;
+var lastAutopilotStatus = "idle";
 async function getActiveTabId() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   return tabs[0]?.id;
@@ -251,36 +510,39 @@ async function getActiveTabId() {
 function broadcast(msg) {
   void chrome.runtime.sendMessage(msg).catch(() => void 0);
 }
+function setAutopilotStatus(status) {
+  lastAutopilotStatus = status;
+  broadcast({ type: "askjev.autopilot.status", status });
+  bridgeClient.emit("autopilot_status", { status });
+}
 async function runAutopilot(goal, typeText) {
   const settings = await getSettings();
   if (!settings.apiKey?.trim()) {
-    broadcast({
-      type: "askjev.autopilot.status",
-      status: "missing TypeSafe API key \u2014 open Options"
-    });
+    setAutopilotStatus("missing TypeSafe API key \u2014 open Options");
     return;
   }
   autopilotRunning = true;
+  setAutopilotStatus("running");
   const maxSteps = 20;
   for (let step = 1; step <= maxSteps && autopilotRunning; step++) {
     const tabId = await getActiveTabId();
     if (tabId == null) {
-      broadcast({ type: "askjev.autopilot.status", status: "no active tab" });
+      setAutopilotStatus("no active tab");
       break;
     }
     broadcast({
       type: "askjev.autopilot.log",
       line: `step ${step}: snapshot`
     });
+    bridgeClient.emit("autopilot_log", { line: `step ${step}: snapshot` });
     const snap = await chrome.tabs.sendMessage(tabId, {
       type: "askjev.dom.snapshot",
       goal
     });
     if (!snap?.ok) {
-      broadcast({
-        type: "askjev.autopilot.log",
-        line: `snapshot failed: ${snap?.error || "unknown"}`
-      });
+      const line2 = `snapshot failed: ${snap?.error || "unknown"}`;
+      broadcast({ type: "askjev.autopilot.log", line: line2 });
+      bridgeClient.emit("autopilot_log", { line: line2 });
       break;
     }
     let decision;
@@ -293,31 +555,28 @@ async function runAutopilot(goal, typeText) {
       });
     } catch (e) {
       await bumpStat("errors");
-      broadcast({
-        type: "askjev.autopilot.log",
-        line: `jev error: ${e.message}`
-      });
+      const line2 = `jev error: ${e.message}`;
+      broadcast({ type: "askjev.autopilot.log", line: line2 });
+      bridgeClient.emit("autopilot_log", { line: line2 });
       break;
     }
-    broadcast({
-      type: "askjev.autopilot.log",
-      line: `jev \u2192 ${decision.action} target=${decision.targetId ?? "none"} irr=${decision.irreversible.toFixed(2)}`
-    });
+    const line = `jev \u2192 ${decision.action} target=${decision.targetId ?? "none"} irr=${decision.irreversible.toFixed(2)}`;
+    broadcast({ type: "askjev.autopilot.log", line });
+    bridgeClient.emit("autopilot_log", { line });
     if (decision.done || decision.action === "DONE") {
-      broadcast({ type: "askjev.autopilot.status", status: "done" });
+      setAutopilotStatus("done");
       await bumpStat("proceeded");
       break;
     }
     if (decision.action === "BLOCKED") {
-      broadcast({ type: "askjev.autopilot.status", status: "blocked by jev" });
+      setAutopilotStatus("blocked by jev");
       await bumpStat("blocked");
       break;
     }
     if (decision.irreversible >= 0.65) {
-      broadcast({
-        type: "askjev.autopilot.status",
-        status: `guard: irreversible (${decision.irreversible.toFixed(2)}) \u2014 stopped. Use Guard overlay or lower risk goal.`
-      });
+      setAutopilotStatus(
+        `guard: irreversible (${decision.irreversible.toFixed(2)}) \u2014 stopped. Use Guard overlay or lower risk goal.`
+      );
       await bumpStat("blocked");
       break;
     }
@@ -328,14 +587,14 @@ async function runAutopilot(goal, typeText) {
       targetId: decision.targetId,
       text
     });
-    broadcast({
-      type: "askjev.autopilot.log",
-      line: exec?.detail || "executed"
-    });
+    const execLine = exec?.detail || "executed";
+    broadcast({ type: "askjev.autopilot.log", line: execLine });
+    bridgeClient.emit("autopilot_log", { line: execLine });
     await new Promise((r) => setTimeout(r, 700));
   }
   autopilotRunning = false;
-  broadcast({ type: "askjev.autopilot.status", status: "idle" });
+  if (lastAutopilotStatus === "running") setAutopilotStatus("idle");
+  else broadcast({ type: "askjev.autopilot.status", status: lastAutopilotStatus });
 }
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "askjev.autopilot.start") {
@@ -345,9 +604,129 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   if (msg?.type === "askjev.autopilot.stop") {
     autopilotRunning = false;
+    setAutopilotStatus("stopped");
     sendResponse({ ok: true });
     return true;
   }
   return void 0;
+});
+async function handleBridgeRpc(method, params) {
+  const settings = await getSettings();
+  if (method === "start_goal") {
+    if (!settings.apiKey?.trim()) {
+      throw bridgeError("missing_api_key", "TypeSafe API key required in Options");
+    }
+    const goal = String(params.goal || "").trim();
+    if (!goal) throw bridgeError("invalid_params", "goal is required");
+    if (autopilotRunning) {
+      autopilotRunning = false;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    void runAutopilot(goal, params.typeText ? String(params.typeText) : void 0);
+    return { started: true, goal };
+  }
+  if (method === "stop") {
+    autopilotRunning = false;
+    setAutopilotStatus("stopped");
+    return { stopped: true };
+  }
+  if (method === "status") {
+    return {
+      autopilotRunning,
+      lastAutopilotStatus,
+      bridge: bridgeClient.getSnapshot(),
+      hasApiKey: Boolean(settings.apiKey?.trim())
+    };
+  }
+  if (method === "list_tabs") {
+    const tabs = await chrome.tabs.query({});
+    return {
+      tabs: tabs.map((t) => ({
+        id: t.id,
+        title: t.title || "",
+        url: t.url || "",
+        active: Boolean(t.active),
+        windowId: t.windowId
+      }))
+    };
+  }
+  if (method === "snapshot") {
+    const tabId = await getActiveTabId();
+    if (tabId == null) throw bridgeError("internal", "no active tab");
+    const goal = String(params.goal || "");
+    const snap = await chrome.tabs.sendMessage(tabId, {
+      type: "askjev.dom.snapshot",
+      goal
+    });
+    if (!snap?.ok) {
+      throw bridgeError("internal", snap?.error || "snapshot failed");
+    }
+    return { elements: snap.elements, state: snap.state };
+  }
+  if (method === "act") {
+    if (!settings.apiKey?.trim()) {
+      throw bridgeError("missing_api_key", "TypeSafe API key required for guarded acts");
+    }
+    const action = String(params.action || "");
+    const targetId = params.targetId != null ? Number(params.targetId) : void 0;
+    const text = params.text != null ? String(params.text) : void 0;
+    const tabId = await getActiveTabId();
+    if (tabId == null) throw bridgeError("internal", "no active tab");
+    const snap = await chrome.tabs.sendMessage(tabId, {
+      type: "askjev.dom.snapshot",
+      goal: `agent act ${action}`
+    });
+    if (!snap?.ok) {
+      throw bridgeError("internal", snap?.error || "snapshot failed");
+    }
+    const guard = await guardAct({
+      apiKey: settings.apiKey,
+      model: settings.model,
+      sensitivity: settings.sensitivity,
+      action,
+      targetId,
+      text,
+      pageState: snap.state
+    });
+    if (guard.blocked) {
+      await bumpStat("blocked");
+      throw bridgeError(
+        "guard_blocked",
+        `irreversible=${guard.irreversible.toFixed(2)} \u2265 0.65 \u2014 act blocked`
+      );
+    }
+    const exec = await chrome.tabs.sendMessage(tabId, {
+      type: "askjev.dom.execute",
+      action,
+      targetId,
+      text
+    });
+    return {
+      ...exec,
+      irreversible: guard.irreversible
+    };
+  }
+  throw bridgeError("invalid_params", `unknown method ${method}`);
+}
+function onBridgeStatus(snap) {
+  broadcast({ type: "askjev.bridge.status", bridge: snap });
+}
+var bridgeClient = new AgentBridgeClient(handleBridgeRpc, onBridgeStatus);
+async function syncBridge() {
+  const settings = await getSettings();
+  bridgeClient.sync(settings);
+}
+void syncBridge();
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "sync") return;
+  if (changes.bridgeEnabled || changes.bridgeToken || changes.bridgePort) {
+    void syncBridge();
+  }
+});
+chrome.alarms.create("askjev.bridge.keepalive", { periodInMinutes: 1 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "askjev.bridge.keepalive") {
+    void syncBridge();
+  }
 });
 //# sourceMappingURL=background.js.map
