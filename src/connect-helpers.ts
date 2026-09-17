@@ -4,13 +4,19 @@
  * The only network path is localhost ws://127.0.0.1:PORT (mcp ↔ extension).
  */
 
+/** Prefer public npm; GitHub Release tarball is the no-registry fallback. */
+export const ASKJEV_MCP_TGZ =
+  "https://github.com/ranjan2829/AskJev/releases/download/v1.5.0/askjev-mcp-1.5.0.tgz";
+
 export function buildMcpServerEntry(
   token: string,
   port: number,
+  source: "npm" | "github" = "npm",
 ): Record<string, unknown> {
+  const pkg = source === "github" ? ASKJEV_MCP_TGZ : "askjev-mcp";
   return {
     command: "npx",
-    args: ["-y", "askjev-mcp"],
+    args: ["-y", pkg],
     env: {
       ASKJEV_TOKEN: token,
       ASKJEV_PORT: String(port),
