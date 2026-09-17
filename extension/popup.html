@@ -2,259 +2,211 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root {
       --bg: #09090b;
-      --panel: #0c0c0e;
+      --card: #18181b;
       --line: #27272a;
-      --line-strong: #3f3f46;
       --text: #fafafa;
       --mute: #a1a1aa;
       --dim: #71717a;
-      --armed: #e4e4e7;
-      --warn: #f59e0b;
-      --hot: #fafafa;
+      --ok: #4ade80;
+      --warn: #fbbf24;
+      --off: #52525b;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      width: 320px;
+      width: 300px;
       background: var(--bg);
       color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
       -webkit-font-smoothing: antialiased;
     }
-    .shell {
-      border: 1px solid var(--line);
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.02), transparent 48px),
-        var(--panel);
-    }
-    .top {
-      display: grid;
-      grid-template-columns: 36px 1fr auto;
-      gap: 10px;
+    .wrap { padding: 14px; }
+    .head {
+      display: flex;
       align-items: center;
-      padding: 12px 12px 10px;
-      border-bottom: 1px solid var(--line);
+      gap: 10px;
+      margin-bottom: 14px;
     }
-    .mark {
-      width: 36px; height: 36px;
-      border: 1px solid var(--line-strong);
-      background: #18181b;
+    .logo {
+      width: 32px; height: 32px;
+      border-radius: 9px;
+      background: var(--card);
+      border: 1px solid var(--line);
       display: grid; place-items: center;
+      flex-shrink: 0;
     }
-    .mark svg { display: block; }
-    .id .name {
-      font-size: 13px;
-      font-weight: 650;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      line-height: 1.1;
+    .titles { flex: 1; min-width: 0; }
+    .titles h1 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
     }
-    .id .tag {
-      margin-top: 3px;
-      font-size: 10px;
-      color: var(--dim);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-    .arm {
-      appearance: none;
-      border: 1px solid var(--line-strong);
-      background: #18181b;
-      color: var(--mute);
-      font-size: 10px;
-      font-weight: 650;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      padding: 8px 10px;
-      cursor: pointer;
-      min-width: 72px;
-    }
-    .arm.on {
-      background: var(--hot);
-      color: #09090b;
-      border-color: var(--hot);
-    }
-    .rail {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      border-bottom: 1px solid var(--line);
-    }
-    .rail .cell {
-      padding: 8px 10px;
-      border-right: 1px solid var(--line);
-    }
-    .rail .cell:last-child { border-right: 0; }
-    .rail .k {
-      font-size: 9px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--dim);
-    }
-    .rail .v {
-      margin-top: 4px;
+    .titles p {
+      margin: 2px 0 0;
       font-size: 11px;
-      font-weight: 650;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--mute);
-      font-variant-numeric: tabular-nums;
+      color: var(--dim);
     }
-    .rail .v.ok { color: var(--armed); }
-    .rail .v.warn { color: var(--warn); }
-    .rail .v.bad { color: #a1a1aa; }
-    .ops {
-      padding: 10px 12px 12px;
+    .switch {
+      appearance: none;
+      width: 40px; height: 24px;
+      border-radius: 999px;
+      border: 0;
+      background: #3f3f46;
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
     }
-    .ops-h {
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform .15s ease;
+    }
+    .switch.on { background: #fafafa; }
+    .switch.on::after { transform: translateX(16px); background: #09090b; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+    .status-row {
       display: flex;
       justify-content: space-between;
-      align-items: baseline;
-      margin-bottom: 8px;
+      align-items: center;
+      padding: 6px 0;
+      font-size: 12px;
     }
-    .ops-h .t {
-      font-size: 9px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--dim);
+    .status-row + .status-row { border-top: 1px solid var(--line); }
+    .status-row .l { color: var(--mute); }
+    .status-row .r {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+      color: var(--text);
     }
-    .ops-h .unit {
-      font-size: 9px;
-      color: var(--dim);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+    .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--off);
     }
+    .dot.ok { background: var(--ok); }
+    .dot.warn { background: var(--warn); }
     .metrics {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
-      gap: 6px;
+      gap: 8px;
+      margin-bottom: 10px;
     }
     .metric {
+      background: var(--card);
       border: 1px solid var(--line);
-      background: #09090b;
-      padding: 8px 8px 7px;
+      border-radius: 12px;
+      padding: 10px;
+      text-align: left;
     }
-    .metric .k {
-      font-size: 9px;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--dim);
-    }
+    .metric .k { font-size: 11px; color: var(--dim); }
     .metric .n {
-      margin-top: 6px;
+      margin-top: 4px;
       font-size: 18px;
-      font-weight: 650;
+      font-weight: 600;
       font-variant-numeric: tabular-nums;
       letter-spacing: -0.02em;
-      line-height: 1;
     }
-    .actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      margin-top: 10px;
-    }
+    .actions { display: grid; gap: 8px; }
     .btn {
       appearance: none;
-      border: 1px solid var(--line-strong);
-      background: #18181b;
+      border: 1px solid var(--line);
+      background: var(--card);
       color: var(--text);
-      font-size: 11px;
-      font-weight: 650;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      padding: 10px 8px;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 600;
       cursor: pointer;
+      text-align: center;
     }
     .btn.primary {
-      background: var(--hot);
+      background: #fafafa;
       color: #09090b;
-      border-color: var(--hot);
-      grid-column: 1 / -1;
+      border-color: #fafafa;
     }
-    .btn:hover { filter: brightness(1.06); }
-    .btn:active { transform: translateY(1px); }
+    .btn:hover { filter: brightness(1.05); }
     .foot {
+      margin-top: 12px;
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      margin-top: 10px;
-      padding-top: 8px;
-      border-top: 1px solid var(--line);
-      font-size: 9px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
+      font-size: 11px;
       color: var(--dim);
     }
-    .foot #ver { color: var(--mute); }
+    .foot button {
+      appearance: none;
+      background: none;
+      border: 0;
+      color: var(--mute);
+      font-size: 11px;
+      cursor: pointer;
+      padding: 0;
+    }
+    .foot button:hover { color: var(--text); }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <header class="top">
-      <div class="mark" aria-hidden="true">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+  <div class="wrap">
+    <div class="head">
+      <div class="logo" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
           <path d="M10 2.5L17 8.2L14.6 9.4L10 12.2L5.4 9.4L3 8.2L10 2.5Z" fill="#FAFAFA"/>
           <path d="M10 7.2L14.2 9.1L10 11.2L5.8 9.1L10 7.2Z" fill="#18181B"/>
           <rect x="6.5" y="14.2" width="7" height="1.4" fill="#A1A1AA"/>
         </svg>
       </div>
-      <div class="id">
-        <div class="name">AskJev</div>
-        <div class="tag">Guard · Autopilot</div>
+      <div class="titles">
+        <h1>AskJev</h1>
+        <p id="armLabel">Protection on</p>
       </div>
-      <button class="arm" id="en" type="button" aria-pressed="false" title="Arm / disarm Guard">Disarmed</button>
-    </header>
+      <button class="switch" id="en" type="button" aria-label="Toggle protection" aria-pressed="true"></button>
+    </div>
 
-    <div class="rail" aria-label="Status">
-      <div class="cell">
-        <div class="k">Key</div>
-        <div class="v" id="key">—</div>
+    <div class="card">
+      <div class="status-row">
+        <span class="l">API key</span>
+        <span class="r"><span class="dot" id="keyDot"></span><span id="key">—</span></span>
       </div>
-      <div class="cell">
-        <div class="k">Bridge</div>
-        <div class="v" id="bridge">—</div>
+      <div class="status-row">
+        <span class="l">Claude bridge</span>
+        <span class="r"><span class="dot" id="bridgeDot"></span><span id="bridge">—</span></span>
       </div>
-      <div class="cell">
-        <div class="k">Mode</div>
-        <div class="v" id="mode">Guard</div>
+      <div class="status-row">
+        <span class="l">Mode</span>
+        <span class="r"><span class="dot ok" id="modeDot"></span><span id="mode">Guard</span></span>
       </div>
     </div>
 
-    <section class="ops">
-      <div class="ops-h">
-        <span class="t">Mission readout</span>
-        <span class="unit">Session stats</span>
-      </div>
-      <div class="metrics">
-        <div class="metric">
-          <div class="k">Blocked</div>
-          <div class="n" id="b">0</div>
-        </div>
-        <div class="metric">
-          <div class="k">Asked</div>
-          <div class="n" id="a">0</div>
-        </div>
-        <div class="metric">
-          <div class="k">Allowed</div>
-          <div class="n" id="p">0</div>
-        </div>
-      </div>
+    <div class="metrics">
+      <div class="metric"><div class="k">Blocked</div><div class="n" id="b">0</div></div>
+      <div class="metric"><div class="k">Asked</div><div class="n" id="a">0</div></div>
+      <div class="metric"><div class="k">Allowed</div><div class="n" id="p">0</div></div>
+    </div>
 
-      <div class="actions">
-        <button class="btn primary" id="auto" type="button">Open Autopilot</button>
-        <button class="btn" id="opts" type="button">Options</button>
-        <button class="btn" id="docs" type="button">Bridge docs</button>
-      </div>
+    <div class="actions">
+      <button class="btn primary" id="auto" type="button">Open Autopilot</button>
+      <button class="btn" id="opts" type="button">Settings</button>
+    </div>
 
-      <div class="foot">
-        <span>TypeSafe Jev · localhost MCP</span>
-        <span id="ver">v1.5.0</span>
-      </div>
-    </section>
+    <div class="foot">
+      <span id="ver">v1.5.1</span>
+      <button type="button" id="docs">Bridge help</button>
+    </div>
   </div>
   <script type="module" src="popup.js"></script>
 </body>
