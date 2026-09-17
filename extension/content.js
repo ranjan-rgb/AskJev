@@ -1,6 +1,6 @@
 (() => {
-  if (window.__holdfireLoaded) return;
-  window.__holdfireLoaded = true;
+  if (window.__askjevLoaded) return;
+  window.__askjevLoaded = true;
 
   const BASE = [
     "buy", "purchase", "pay", "checkout", "place order", "confirm payment",
@@ -21,7 +21,7 @@
 
   function refreshSettings() {
     try {
-      chrome.runtime.sendMessage({ type: "holdfire.getSettings" }, (resp) => {
+      chrome.runtime.sendMessage({ type: "askjev.getSettings" }, (resp) => {
         if (chrome.runtime.lastError || !resp?.ok) return;
         settingsCache = { ...settingsCache, ...resp.settings };
       });
@@ -98,7 +98,7 @@
   function showOverlay({ label, decision, error, statusText, onAllow, onBlock }) {
     hideOverlay();
     overlayHost = document.createElement("div");
-    overlayHost.id = "holdfire-root";
+    overlayHost.id = "askjev-root";
     const shadow = overlayHost.attachShadow({ mode: "open" });
     shadow.innerHTML = `
       <style>
@@ -117,7 +117,7 @@
         .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#27272a;font-size:11px;margin-left:6px}
       </style>
       <div class="wrap"><div class="card">
-        <p class="brand">Holdfire · powered by Jev</p>
+        <p class="brand">AskJev · powered by Jev</p>
         <h1>Hold fire on this click</h1>
         <p class="muted">“${escapeHtml(label)}” ${statusText ? `<span class="pill">${escapeHtml(statusText)}</span>` : ""}</p>
         <div id="stats"></div>
@@ -194,7 +194,7 @@
     return new Promise((resolve) => {
       try {
         chrome.runtime.sendMessage(
-          { type: "holdfire.decide", state },
+          { type: "askjev.decide", state },
           (resp) => {
             if (chrome.runtime.lastError) {
               resolve({ ok: false, error: chrome.runtime.lastError.message });
@@ -222,7 +222,7 @@
 
   function stat(key) {
     try {
-      chrome.runtime.sendMessage({ type: "holdfire.stat", key });
+      chrome.runtime.sendMessage({ type: "askjev.stat", key });
     } catch {
       /* ignore */
     }
@@ -267,7 +267,7 @@
       if (!resp?.ok) {
         const err =
           resp?.error === "missing_api_key"
-            ? "Add your TypeSafe API key in Holdfire options (extension icon → Options)."
+            ? "Add your TypeSafe API key in AskJev options (extension icon → Options)."
             : `Jev error: ${resp?.error || "unknown"}`;
         showOverlay({
           label,

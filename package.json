@@ -1,10 +1,10 @@
 {
-  "name": "holdfire",
+  "name": "askjev",
   "version": "1.0.0",
   "private": true,
-  "description": "Holdfire — Jev holds fire on dangerous browser clicks",
+  "description": "AskJev \u2014 Jev holds fire on dangerous browser clicks",
   "scripts": {
-    "pack": "cd extension && zip -r ../store/holdfire-1.0.0.zip . -x '*.DS_Store'",
+    "pack": "cd extension && zip -r ../store/askjev-1.0.0.zip . -x '*.DS_Store'",
     "demo": "python3 -m http.server 8765 --directory demo"
   }
 }

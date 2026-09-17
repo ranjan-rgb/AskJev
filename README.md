@@ -1,12 +1,12 @@
-# Holdfire
+# AskJev
 
 **Jev holds fire on dangerous clicks — pay, delete, send, approve — before they land.**
 
-Chrome extension. Not a browser agent. The page stays yours. Holdfire only decides **proceed / block / ask** using [TypeSafe Jev](https://docs.typesafe.ai/introduction) (System One).
+Chrome extension. Not a browser agent. The page stays yours. AskJev only decides **proceed / block / ask** using [TypeSafe Jev](https://docs.typesafe.ai/introduction) (System One).
 
 ## Why
 
-The feed is full of “Jev drives the browser.” Holdfire is the opposite product: **a decision gate on irreversible actions**. One misclick on Pay / Delete / Deploy and you’re done. Holdfire pauses the click, asks Jev once (Noul + Score + Choice), shows probabilities, then allows or blocks.
+The feed is full of “Jev drives the browser.” AskJev is the opposite product: **a decision gate on irreversible actions**. One misclick on Pay / Delete / Deploy and you’re done. AskJev pauses the click, asks Jev once (Noul + Score + Choice), shows probabilities, then allows or blocks.
 
 ## Install (dev)
 
@@ -18,12 +18,12 @@ The feed is full of “Jev drives the browser.” Holdfire is the opposite produ
 
 ```bash
 npm run pack
-# → store/holdfire-1.0.0.zip
+# → store/askjev-1.0.0.zip
 ```
 
 ## Privacy
 
-API key stays in Chrome sync storage. Risky-click context (URL, title, snippet, button label) is sent only to `api.typesafe.ai`. No Holdfire backend. See `extension/privacy.html`.
+API key stays in Chrome sync storage. Risky-click context (URL, title, snippet, button label) is sent only to `api.typesafe.ai`. No AskJev backend. See `extension/privacy.html`.
 
 ## Agent skill
 

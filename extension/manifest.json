@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "Holdfire",
+  "name": "AskJev",
   "version": "1.0.0",
   "description": "Jev holds fire on dangerous clicks — pay, delete, send, approve — before they land.",
   "permissions": ["storage", "alarms"],
   "host_permissions": ["https://api.typesafe.ai/*"],
   "action": {
-    "default_title": "Holdfire",
+    "default_title": "AskJev",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",

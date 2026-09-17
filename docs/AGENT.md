@@ -1,10 +1,10 @@
-# Holdfire agent skill
+# AskJev agent skill
 
-Use this when helping Ranjan configure or extend Holdfire.
+Use this when helping Ranjan configure or extend AskJev.
 
 ## Product
 
-Holdfire is a Chrome MV3 extension. It intercepts risky clicks and asks TypeSafe Jev for three answers in one call: `irreversible` (noul), `risk` (score), `action` (choice: proceed|block|ask).
+AskJev is a Chrome MV3 extension. It intercepts risky clicks and asks TypeSafe Jev for three answers in one call: `irreversible` (noul), `risk` (score), `action` (choice: proceed|block|ask).
 
 ## Configure for the user
 

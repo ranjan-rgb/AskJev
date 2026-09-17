@@ -47,7 +47,7 @@ function buildQuestions(sensitivity) {
     },
     action: {
       type: "choice",
-      instructions: `Decide what Holdfire should do. ${tone}`,
+      instructions: `Decide what AskJev should do. ${tone}`,
       criteria: {
         proceed: "Allow the click. Low risk or clearly intentional.",
         block: "Hard block. Too dangerous or likely accidental.",
@@ -89,7 +89,7 @@ async function callJev({ state, apiKey, model, sensitivity }) {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg?.type === "holdfire.decide") {
+  if (msg?.type === "askjev.decide") {
     (async () => {
       try {
         const settings = await getSettings();
@@ -129,12 +129,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if (msg?.type === "holdfire.stat") {
+  if (msg?.type === "askjev.stat") {
     bumpStat(msg.key).then(() => sendResponse({ ok: true }));
     return true;
   }
 
-  if (msg?.type === "holdfire.getSettings") {
+  if (msg?.type === "askjev.getSettings") {
     getSettings().then((s) => {
       const { apiKey, ...rest } = s;
       sendResponse({
