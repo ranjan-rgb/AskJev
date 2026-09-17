@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        background: #09090b;
+        color: #fafafa;
+        margin: 0;
+        padding: 14px;
+        width: 280px;
+      }
+      label { font-size: 12px; color: #a1a1aa; display: block; margin-bottom: 6px; }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        background: #18181b;
+        border: 1px solid #27272a;
+        color: #fafafa;
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin-bottom: 10px;
+      }
+      button {
+        width: 100%;
+        background: #fafafa;
+        color: #09090b;
+        border: 0;
+        border-radius: 8px;
+        padding: 8px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      p { font-size: 11px; color: #71717a; margin: 10px 0 0; line-height: 1.4; }
+      .ok { color: #4ade80; font-size: 12px; min-height: 16px; }
+    </style>
+  </head>
+  <body>
+    <label for="key">TypeSafe API key</label>
+    <input id="key" type="password" placeholder="tsk_..." autocomplete="off" />
+    <button id="save">Save</button>
+    <div class="ok" id="status"></div>
+    <p>Veto intercepts pay / buy / delete / send / approve clicks and asks Jev before they fire.</p>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Checkout — Acme Store (Veto demo)</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui; background:#09090b; color:#fafafa; margin:0; padding:48px; }
+    .card { max-width:420px; margin:0 auto; border:1px solid #27272a; border-radius:14px; padding:24px; background:#18181b; }
+    h1 { font-size:20px; margin:0 0 8px; }
+    p { color:#a1a1aa; font-size:14px; }
+    .price { font-size:28px; margin:16px 0; }
+    button, a.btn {
+      display:block; width:100%; box-sizing:border-box; text-align:center;
+      margin:8px 0; padding:12px; border-radius:10px; border:0; font-weight:600; cursor:pointer; text-decoration:none;
+    }
+    .pay { background:#22c55e; color:#052e16; }
+    .del { background:#27272a; color:#fafafa; }
+    .send { background:#fafafa; color:#09090b; }
+    .ok { color:#4ade80; margin-top:12px; display:none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Order #4821</h1>
+    <p>Mac Mini rack fee · Dubai DC</p>
+    <div class="price">$249.00</div>
+    <button class="pay" id="pay">Pay now with card</button>
+    <button class="send" id="send">Send receipt to finance</button>
+    <button class="del" id="del">Delete this order forever</button>
+    <a class="btn del" href="#approve">Approve production deploy</a>
+    <p class="ok" id="ok">action went through (veto allowed or missing)</p>
+  </div>
+  <script>
+    function boom(name) {
+      document.getElementById('ok').style.display = 'block';
+      document.getElementById('ok').textContent = name + ' went through';
+    }
+    pay.onclick = () => boom('Pay');
+    send.onclick = () => boom('Send');
+    del.onclick = () => boom('Delete');
+  </script>
+</body>
+</html>
