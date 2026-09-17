@@ -1,0 +1,50 @@
+{
+  "name": "askjev-mcp",
+  "version": "1.4.0",
+  "description": "AskJev MCP bridge — connect Claude Desktop, Cursor, or any MCP client to the AskJev browser extension over localhost",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "askjev-mcp": "bin/askjev-mcp.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node bin/askjev-mcp.js",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "askjev",
+    "mcp",
+    "browser",
+    "automation",
+    "claude",
+    "cursor"
+  ],
+  "author": "Ranjan Shitole",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ranjan2829/AskJev.git",
+    "directory": "mcp"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "ws": "^8.18.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.3"
+  }
+}

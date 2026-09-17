@@ -1,6 +1,13 @@
 import { DEFAULTS, type AskJevSettings } from "./defaults.js";
 import { callJev } from "./jev.js";
 import { decideNextStep, extractQuotedText } from "./autopilot-jev.js";
+import {
+  AgentBridgeClient,
+  bridgeError,
+  guardAct,
+  type BridgeStatusSnapshot,
+} from "./bridge.js";
+import type { DomAction } from "./dom.js";
 
 async function getSettings(): Promise<AskJevSettings> {
   const stored = (await chrome.storage.sync.get(null)) as Partial<AskJevSettings>;
@@ -66,14 +73,24 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
   if (msg?.type === "askjev.getSettings") {
     void getSettings().then((s) => {
-      const { apiKey, ...rest } = s;
+      const { apiKey, bridgeToken, ...rest } = s;
       sendResponse({
         ok: true,
-        settings: { ...rest, hasKey: Boolean(apiKey && String(apiKey).trim()) },
+        settings: {
+          ...rest,
+          hasKey: Boolean(apiKey && String(apiKey).trim()),
+          hasBridgeToken: Boolean(bridgeToken && String(bridgeToken).trim()),
+        },
       });
     });
     return true;
   }
+
+  if (msg?.type === "askjev.bridge.status") {
+    sendResponse({ ok: true, bridge: bridgeClient.getSnapshot() });
+    return true;
+  }
+
   return undefined;
 });
 
@@ -93,6 +110,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 /** ---- Autopilot ---- */
 let autopilotRunning = false;
+let lastAutopilotStatus = "idle";
 
 async function getActiveTabId(): Promise<number | undefined> {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -103,36 +121,40 @@ function broadcast(msg: object): void {
   void chrome.runtime.sendMessage(msg).catch(() => undefined);
 }
 
+function setAutopilotStatus(status: string): void {
+  lastAutopilotStatus = status;
+  broadcast({ type: "askjev.autopilot.status", status });
+  bridgeClient.emit("autopilot_status", { status });
+}
+
 async function runAutopilot(goal: string, typeText?: string): Promise<void> {
   const settings = await getSettings();
   if (!settings.apiKey?.trim()) {
-    broadcast({
-      type: "askjev.autopilot.status",
-      status: "missing TypeSafe API key — open Options",
-    });
+    setAutopilotStatus("missing TypeSafe API key — open Options");
     return;
   }
   autopilotRunning = true;
+  setAutopilotStatus("running");
   const maxSteps = 20;
   for (let step = 1; step <= maxSteps && autopilotRunning; step++) {
     const tabId = await getActiveTabId();
     if (tabId == null) {
-      broadcast({ type: "askjev.autopilot.status", status: "no active tab" });
+      setAutopilotStatus("no active tab");
       break;
     }
     broadcast({
       type: "askjev.autopilot.log",
       line: `step ${step}: snapshot`,
     });
+    bridgeClient.emit("autopilot_log", { line: `step ${step}: snapshot` });
     const snap = await chrome.tabs.sendMessage(tabId, {
       type: "askjev.dom.snapshot",
       goal,
     });
     if (!snap?.ok) {
-      broadcast({
-        type: "askjev.autopilot.log",
-        line: `snapshot failed: ${snap?.error || "unknown"}`,
-      });
+      const line = `snapshot failed: ${snap?.error || "unknown"}`;
+      broadcast({ type: "askjev.autopilot.log", line });
+      bridgeClient.emit("autopilot_log", { line });
       break;
     }
 
@@ -146,57 +168,51 @@ async function runAutopilot(goal: string, typeText?: string): Promise<void> {
       });
     } catch (e) {
       await bumpStat("errors");
-      broadcast({
-        type: "askjev.autopilot.log",
-        line: `jev error: ${(e as Error).message}`,
-      });
+      const line = `jev error: ${(e as Error).message}`;
+      broadcast({ type: "askjev.autopilot.log", line });
+      bridgeClient.emit("autopilot_log", { line });
       break;
     }
 
-    broadcast({
-      type: "askjev.autopilot.log",
-      line: `jev → ${decision.action} target=${decision.targetId ?? "none"} irr=${decision.irreversible.toFixed(2)}`,
-    });
+    const line = `jev → ${decision.action} target=${decision.targetId ?? "none"} irr=${decision.irreversible.toFixed(2)}`;
+    broadcast({ type: "askjev.autopilot.log", line });
+    bridgeClient.emit("autopilot_log", { line });
 
     if (decision.done || decision.action === "DONE") {
-      broadcast({ type: "askjev.autopilot.status", status: "done" });
+      setAutopilotStatus("done");
       await bumpStat("proceeded");
       break;
     }
     if (decision.action === "BLOCKED") {
-      broadcast({ type: "askjev.autopilot.status", status: "blocked by jev" });
+      setAutopilotStatus("blocked by jev");
       await bumpStat("blocked");
       break;
     }
 
     // Guard: irreversible actions need explicit confirm via sidepanel status
     if (decision.irreversible >= 0.65) {
-      broadcast({
-        type: "askjev.autopilot.status",
-        status: `guard: irreversible (${decision.irreversible.toFixed(2)}) — stopped. Use Guard overlay or lower risk goal.`,
-      });
+      setAutopilotStatus(
+        `guard: irreversible (${decision.irreversible.toFixed(2)}) — stopped. Use Guard overlay or lower risk goal.`,
+      );
       await bumpStat("blocked");
       break;
     }
 
-    const text =
-      typeText ||
-      extractQuotedText(goal) ||
-      undefined;
+    const text = typeText || extractQuotedText(goal) || undefined;
     const exec = await chrome.tabs.sendMessage(tabId, {
       type: "askjev.dom.execute",
       action: decision.action,
       targetId: decision.targetId,
       text,
     });
-    broadcast({
-      type: "askjev.autopilot.log",
-      line: exec?.detail || "executed",
-    });
+    const execLine = exec?.detail || "executed";
+    broadcast({ type: "askjev.autopilot.log", line: execLine });
+    bridgeClient.emit("autopilot_log", { line: execLine });
     await new Promise((r) => setTimeout(r, 700));
   }
   autopilotRunning = false;
-  broadcast({ type: "askjev.autopilot.status", status: "idle" });
+  if (lastAutopilotStatus === "running") setAutopilotStatus("idle");
+  else broadcast({ type: "askjev.autopilot.status", status: lastAutopilotStatus });
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -207,8 +223,154 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   if (msg?.type === "askjev.autopilot.stop") {
     autopilotRunning = false;
+    setAutopilotStatus("stopped");
     sendResponse({ ok: true });
     return true;
   }
   return undefined;
+});
+
+/** ---- Agent bridge RPC handlers ---- */
+async function handleBridgeRpc(
+  method: string,
+  params: Record<string, unknown>,
+): Promise<unknown> {
+  const settings = await getSettings();
+
+  if (method === "start_goal") {
+    if (!settings.apiKey?.trim()) {
+      throw bridgeError("missing_api_key", "TypeSafe API key required in Options");
+    }
+    const goal = String(params.goal || "").trim();
+    if (!goal) throw bridgeError("invalid_params", "goal is required");
+    if (autopilotRunning) {
+      autopilotRunning = false;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    void runAutopilot(goal, params.typeText ? String(params.typeText) : undefined);
+    return { started: true, goal };
+  }
+
+  if (method === "stop") {
+    autopilotRunning = false;
+    setAutopilotStatus("stopped");
+    return { stopped: true };
+  }
+
+  if (method === "status") {
+    return {
+      autopilotRunning,
+      lastAutopilotStatus,
+      bridge: bridgeClient.getSnapshot(),
+      hasApiKey: Boolean(settings.apiKey?.trim()),
+    };
+  }
+
+  if (method === "list_tabs") {
+    const tabs = await chrome.tabs.query({});
+    return {
+      tabs: tabs.map((t) => ({
+        id: t.id,
+        title: t.title || "",
+        url: t.url || "",
+        active: Boolean(t.active),
+        windowId: t.windowId,
+      })),
+    };
+  }
+
+  if (method === "snapshot") {
+    const tabId = await getActiveTabId();
+    if (tabId == null) throw bridgeError("internal", "no active tab");
+    const goal = String(params.goal || "");
+    const snap = await chrome.tabs.sendMessage(tabId, {
+      type: "askjev.dom.snapshot",
+      goal,
+    });
+    if (!snap?.ok) {
+      throw bridgeError("internal", snap?.error || "snapshot failed");
+    }
+    return { elements: snap.elements, state: snap.state };
+  }
+
+  if (method === "act") {
+    if (!settings.apiKey?.trim()) {
+      throw bridgeError("missing_api_key", "TypeSafe API key required for guarded acts");
+    }
+    const action = String(params.action || "") as DomAction;
+    const targetId =
+      params.targetId != null ? Number(params.targetId) : undefined;
+    const text = params.text != null ? String(params.text) : undefined;
+    const tabId = await getActiveTabId();
+    if (tabId == null) throw bridgeError("internal", "no active tab");
+
+    const snap = await chrome.tabs.sendMessage(tabId, {
+      type: "askjev.dom.snapshot",
+      goal: `agent act ${action}`,
+    });
+    if (!snap?.ok) {
+      throw bridgeError("internal", snap?.error || "snapshot failed");
+    }
+
+    const guard = await guardAct({
+      apiKey: settings.apiKey,
+      model: settings.model,
+      sensitivity: settings.sensitivity,
+      action,
+      targetId,
+      text,
+      pageState: snap.state,
+    });
+    if (guard.blocked) {
+      await bumpStat("blocked");
+      throw bridgeError(
+        "guard_blocked",
+        `irreversible=${guard.irreversible.toFixed(2)} ≥ 0.65 — act blocked`,
+      );
+    }
+
+    const exec = await chrome.tabs.sendMessage(tabId, {
+      type: "askjev.dom.execute",
+      action,
+      targetId,
+      text,
+    });
+    return {
+      ...exec,
+      irreversible: guard.irreversible,
+    };
+  }
+
+  throw bridgeError("invalid_params", `unknown method ${method}`);
+}
+
+function onBridgeStatus(snap: BridgeStatusSnapshot): void {
+  broadcast({ type: "askjev.bridge.status", bridge: snap });
+}
+
+const bridgeClient = new AgentBridgeClient(handleBridgeRpc, onBridgeStatus);
+
+async function syncBridge(): Promise<void> {
+  const settings = await getSettings();
+  bridgeClient.sync(settings);
+}
+
+void syncBridge();
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "sync") return;
+  if (
+    changes.bridgeEnabled ||
+    changes.bridgeToken ||
+    changes.bridgePort
+  ) {
+    void syncBridge();
+  }
+});
+
+/** Keep service worker alive while bridge is enabled (alarms). */
+chrome.alarms.create("askjev.bridge.keepalive", { periodInMinutes: 1 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "askjev.bridge.keepalive") {
+    void syncBridge();
+  }
 });

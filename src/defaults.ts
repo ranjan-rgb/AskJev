@@ -19,6 +19,12 @@ export interface AskJevSettings {
   gateFormSubmits: boolean;
   model: string;
   stats: AskJevStats;
+  /** Agent bridge: connect to local askjev-mcp WebSocket. */
+  bridgeEnabled: boolean;
+  /** Pairing token (hex, 32+ bytes). Empty until generated. */
+  bridgeToken: string;
+  /** Local bridge port (MCP listens here). */
+  bridgePort: number;
 }
 
 export const DEFAULTS: AskJevSettings = {
@@ -31,6 +37,9 @@ export const DEFAULTS: AskJevSettings = {
   gateFormSubmits: false,
   model: "jev-latest",
   stats: { blocked: 0, asked: 0, proceeded: 0, errors: 0 },
+  bridgeEnabled: false,
+  bridgeToken: "",
+  bridgePort: 17373,
 };
 
 /** Broad irreversible / high-impact action vocabulary — not just payments. */
@@ -97,3 +106,10 @@ export const BASE_KEYWORDS = [
 
 export const DESTRUCTIVE_CLASS_RE =
   /\b(danger|destructive|error|warning|btn-danger|btn-error|bg-red|text-red)\b/i;
+
+/** Generate a crypto-random pairing token (32 bytes → 64 hex chars). */
+export function generateBridgeToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
