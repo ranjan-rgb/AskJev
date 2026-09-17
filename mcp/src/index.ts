@@ -17,13 +17,17 @@ function requireToken(): string {
   const token = (process.env.ASKJEV_TOKEN || "").trim();
   if (!token) {
     console.error(
-      "askjev-mcp: set ASKJEV_TOKEN to the pairing token from AskJev Options → Agent Bridge",
+      "AskJev MCP: ASKJEV_TOKEN is missing.\n" +
+        "Claude Desktop / Cursor should set it via mcpServers.askjev.env in their config.\n" +
+        "Fix: AskJev Options → Auto-connect → Copy Claude/Cursor config (or run the downloaded installer), then restart the client.\n" +
+        "Do not export ASKJEV_TOKEN in a shell for daily use — Claude starts the bridge for you.",
     );
     process.exit(1);
   }
   if (token.length < 64) {
     console.error(
-      "askjev-mcp: ASKJEV_TOKEN looks too short (need 32+ random bytes as hex, ≥64 chars)",
+      "AskJev MCP: ASKJEV_TOKEN looks too short (need 32+ random bytes as hex, ≥64 chars).\n" +
+        "Re-run Auto-connect in AskJev Options to generate a fresh pairing token.",
     );
     process.exit(1);
   }
@@ -68,12 +72,12 @@ async function main(): Promise<void> {
   const bridge = new BridgeServer({ token, port, host: "127.0.0.1" });
   await bridge.listen();
   console.error(
-    `askjev-mcp: WebSocket bridge on ws://127.0.0.1:${port} (waiting for extension)`,
+    `AskJev MCP ready — waiting for extension on 127.0.0.1:${port}`,
   );
 
   const server = new McpServer({
     name: "askjev-mcp",
-    version: "1.4.0",
+    version: "1.5.0",
   });
 
   // ---- Mode A: goal-driven autopilot ----
@@ -218,7 +222,7 @@ async function main(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("askjev-mcp: MCP stdio ready");
+  console.error("AskJev MCP: stdio connected — Claude/Cursor owns this process");
 
   const shutdown = async () => {
     try {

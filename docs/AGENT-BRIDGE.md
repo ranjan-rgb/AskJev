@@ -1,13 +1,76 @@
 # AskJev Agent Bridge
 
-Connect **any MCP client** (Claude Desktop, Cursor, Windsurf, …) to the AskJev browser extension so an agent can drive the active tab — with the same Guard that Autopilot uses.
+Connect **Claude Desktop** or **Cursor** to the AskJev browser extension so an agent can drive the active tab — with the same Guard that Autopilot uses.
+
+**You never open a terminal for daily use.** Claude (or Cursor) starts the bridge for you.
+
+## The one thing to remember
+
+| Myth | Reality |
+|------|---------|
+| “I need a URL to paste into Claude” | **No.** Claude Desktop has no AskJev URL. It launches `npx -y askjev-mcp` over **stdio** from its config file. |
+| “I must run `npx` myself every day” | **No.** That is Claude’s job via the config `command` field. |
+| “What is `ws://127.0.0.1:17373`?” | Internal only — between `askjev-mcp` and the Chrome extension. Automatic. Localhost only. Not something you paste anywhere. |
+
+> A future HTTP/SSE transport (if added) would still be **127.0.0.1 only**. Today’s production path is stdio + localhost WebSocket.
+
+## Happy path (average users) — 3 clicks
+
+### 1. Options → Auto-connect
+
+1. Open AskJev **Options**.
+2. Under **Connect Claude / Cursor**, click **Auto-connect**.
+   - Creates a pairing token if you don’t have one
+   - Enables the bridge and saves
+   - Copies a ready-to-paste Claude Desktop JSON (token already filled)
+
+### 2. Install the config (pick one)
+
+**A — Download installer (easiest on Mac/Windows)**
+
+- Download `AskJev-Connect-Claude.command` (macOS), `.bat` (Windows), or `.sh` (Linux)
+- Run it once — it merges AskJev into Claude’s config file
+- It prints **Restart Claude Desktop**
+
+**B — Paste JSON**
+
+- Click **Copy Claude Desktop config** or **Copy Cursor MCP config**
+- Paste into:
+  - Claude: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS), `%APPDATA%\Claude\claude_desktop_config.json` (Windows), `~/.config/Claude/claude_desktop_config.json` (Linux)
+  - Cursor: `.cursor/mcp.json` or Settings → MCP
+
+The JSON looks like this (token already filled by Auto-connect):
+
+```json
+{
+  "mcpServers": {
+    "askjev": {
+      "command": "npx",
+      "args": ["-y", "askjev-mcp"],
+      "env": {
+        "ASKJEV_TOKEN": "<filled-by-extension>",
+        "ASKJEV_PORT": "17373"
+      }
+    }
+  }
+}
+```
+
+### 3. Restart Claude / Cursor → Done
+
+Quit and reopen the client. Claude launches `askjev-mcp` for you.  
+AskJev Options / popup show **paired** / **Auto**. Tools appear as `askjev_*`.
+
+**No daily terminal. No exporting `ASKJEV_TOKEN` in a shell.**
+
+---
 
 ## Architecture
 
 ```
-Claude / Cursor  --stdio MCP-->  askjev-mcp (Node)
+Claude / Cursor  --stdio MCP-->  askjev-mcp (Node, launched by Claude)
                                       |
-                                      | WebSocket server
+                                      | WebSocket (automatic)
                                       | ws://127.0.0.1:17373
                                       v
                               AskJev extension (client)
@@ -17,64 +80,8 @@ Claude / Cursor  --stdio MCP-->  askjev-mcp (Node)
 ```
 
 - **MCP process is the WebSocket server** (localhost only).
-- **Extension is the client** — enables when you turn on Agent Bridge and dials in with the pairing token.
+- **Extension is the client** — arms when Auto-connect enables the bridge.
 - TypeSafe API key **never** crosses the bridge; only the extension calls `api.typesafe.ai`.
-
-## 3-step connect (all users)
-
-### 1. Extension
-
-1. Load AskJev (`npm run build` → Load unpacked → `extension/`).
-2. Options → **Agent bridge** → **Generate token** → **Copy**.
-3. Check **Enable agent bridge** → **Save**.
-
-### 2. Run the MCP bridge
-
-```bash
-export ASKJEV_TOKEN='<paste pairing token>'
-npx askjev-mcp
-# or from this repo: npm run build -w askjev-mcp && ASKJEV_TOKEN=... node mcp/bin/askjev-mcp.js
-```
-
-Optional: `ASKJEV_PORT=17373` (must match Options → Bridge port).
-
-Wait until the Options status shows `paired`.
-
-### 3. Point your MCP client at askjev-mcp
-
-**Claude Desktop** (`claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "askjev": {
-      "command": "npx",
-      "args": ["-y", "askjev-mcp"],
-      "env": {
-        "ASKJEV_TOKEN": "PASTE_TOKEN_HERE"
-      }
-    }
-  }
-}
-```
-
-**Cursor** (`.cursor/mcp.json` or Settings → MCP):
-
-```json
-{
-  "mcpServers": {
-    "askjev": {
-      "command": "npx",
-      "args": ["-y", "askjev-mcp"],
-      "env": {
-        "ASKJEV_TOKEN": "PASTE_TOKEN_HERE"
-      }
-    }
-  }
-}
-```
-
-Restart the client after saving. Tools appear as `askjev_*`.
 
 ## MCP tools
 
@@ -91,7 +98,7 @@ Structured error codes: `not_paired`, `bridge_offline`, `guard_blocked`, `missin
 
 ## Wire protocol (extension ↔ bridge)
 
-JSON text frames over WebSocket.
+JSON text frames over WebSocket on `127.0.0.1` only.
 
 ```json
 { "type": "hello", "token": "<hex>", "role": "extension", "version": "1.0" }
@@ -118,7 +125,7 @@ Every message that carries a `token` must match the pairing token (constant-time
 | API key | Stays in Chrome `storage.sync`; never sent over WS |
 | Guard | Autopilot + `askjev_act` stop when irreversible ≥ 0.65 |
 | Rate limit | `act` limited to 30/min in MCP |
-| Revoke | Options → Revoke clears token and disables bridge |
+| Revoke | Options → Advanced → Revoke clears token and disables bridge |
 
 **Threats considered**
 
@@ -137,7 +144,23 @@ Every message that carries a `token` must match the pairing token (constant-time
 | `bridgeToken` | `""` |
 | `bridgePort` | `17373` |
 
-## Dev from this repo
+---
+
+## Appendix: power-user terminal (optional)
+
+Daily use does **not** need this. Prefer Auto-connect.
+
+```bash
+# Only for debugging askjev-mcp outside Claude/Cursor
+export ASKJEV_TOKEN='<pairing token from Options → Advanced>'
+npx -y askjev-mcp
+# or from this repo:
+ASKJEV_TOKEN=… node mcp/bin/askjev-mcp.js
+```
+
+Optional: `ASKJEV_PORT=17373` (must match Options → Bridge port).
+
+### Dev from this repo
 
 ```bash
 npm install

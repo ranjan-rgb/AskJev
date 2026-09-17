@@ -13,15 +13,17 @@ Built for worldwide use: every site by default (`<all_urls>`), cheap System One 
 |------|--------|--------------|
 | **Autopilot** | Side panel | You type a goal. AskJev snapshots interactive elements, asks Jev for the next action (`CLICK` / `TYPE_TEXT` / `SELECT` / `SCROLL_*` / `WAIT` / `DONE` / `BLOCKED`), executes it, repeats (max 20 steps). |
 | **Guard** | Every page | Risky clicks (pay, delete, send, publish, deploy, …) are held. Jev scores irreversible + risk and chooses `proceed` / `block` / `ask`. Overlay lets you confirm. Autopilot **stops** if the next step looks irreversible (≥ 0.65). |
-| **Agent bridge** | MCP + Options | Run `npx askjev-mcp` with a pairing token. Claude/Cursor get `askjev_*` tools. Extension dials `ws://127.0.0.1:17373`. Same Guard on acts. |
+| **Agent bridge** | MCP + Options | Auto-connect arms the bridge. Claude/Cursor launch `npx -y askjev-mcp` for you (stdio). Local `ws://127.0.0.1:17373` is automatic. Same Guard on acts. |
 
 Allowlist is the only opt-out. There is no AskJev backend.
 
-## Connect an MCP client (3 steps)
+## Connect Claude / Cursor (no terminal)
 
-1. **Options → Agent bridge → Generate token → Enable → Save**
-2. **`ASKJEV_TOKEN=<token> npx askjev-mcp`**
-3. **Paste Claude Desktop / Cursor MCP config** (token in `env`) — full snippets in [docs/AGENT-BRIDGE.md](docs/AGENT-BRIDGE.md)
+1. **Options → Auto-connect** (creates token, arms bridge, copies config)
+2. **Paste JSON** *or* **download** `AskJev-Connect-Claude.command` / `.bat` / `.sh` and run once
+3. **Restart Claude / Cursor** — they launch `npx -y askjev-mcp` for you
+
+There is **no URL to paste**. The only network path is local `ws://127.0.0.1` between askjev-mcp and the extension. Details: [docs/AGENT-BRIDGE.md](docs/AGENT-BRIDGE.md)
 
 ## How AI connects
 
@@ -46,7 +48,7 @@ npm install && npm run build
 2. Options → paste your **TypeSafe** API key
 3. Popup → **Open Autopilot** (or open the side panel)
 4. Optional Guard demo: `npm run demo` → open `http://localhost:8765` → click Pay / Delete / Send
-5. Optional agent bridge: see [docs/AGENT-BRIDGE.md](docs/AGENT-BRIDGE.md)
+5. Optional agent bridge: Options → Auto-connect (see [docs/AGENT-BRIDGE.md](docs/AGENT-BRIDGE.md))
 
 ## Project layout
 
@@ -75,14 +77,14 @@ npm run build          # → extension/ + mcp/dist
 npm run pack           # zip for store (see store/)
 ```
 
-Current version: **1.4.0**
+Current version: **1.5.0**
 
 `askjev-mcp` is shippable on npm (`ranjan3129`) but is **not** published unless you ask.
 
 ## Privacy
 
 - API key: Chrome `storage.sync` only (never over the agent bridge)
-- Pairing token: Chrome sync + your local MCP env
+- Pairing token: Chrome sync + Claude/Cursor MCP config env (stdio); never a public URL
 - Network: `https://api.typesafe.ai/*` plus pages you browse; bridge is `127.0.0.1` only
 - No AskJev servers, no analytics backend
 

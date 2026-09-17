@@ -4,29 +4,40 @@
   <meta charset="utf-8" />
   <title>AskJev options</title>
   <style>
-    body{font-family:ui-sans-serif,system-ui,sans-serif;background:#09090b;color:#fafafa;margin:0;padding:40px;max-width:640px;-webkit-font-smoothing:antialiased}
+    body{font-family:ui-sans-serif,system-ui,sans-serif;background:#09090b;color:#fafafa;margin:0;padding:40px;max-width:680px;-webkit-font-smoothing:antialiased}
     .brand{display:flex;gap:12px;align-items:center;margin-bottom:8px}
     .mark{width:36px;height:36px;border:1px solid #3f3f46;background:#18181b;display:grid;place-items:center;flex-shrink:0}
     h1{letter-spacing:.06em;text-transform:uppercase;font-size:18px}
     h1{font-size:22px;margin:0 0 6px}
     h2{font-size:15px;margin:32px 0 8px;color:#e4e4e7;font-weight:600}
+    h3{font-size:13px;margin:0 0 8px;color:#d4d4d8;font-weight:600}
     .sub{color:#a1a1aa;margin:0 0 28px;font-size:14px;line-height:1.5}
     .hint{color:#71717a;font-size:12px;margin:6px 0 0;line-height:1.45}
+    .callout{color:#d4d4d8;font-size:13px;line-height:1.5;margin:0 0 12px;padding:10px 12px;background:#09090b;border:1px solid #3f3f46;border-radius:10px}
+    .callout strong{color:#fafafa}
     label{display:block;font-size:12px;color:#a1a1aa;margin:16px 0 6px}
     input,select,textarea{width:100%;box-sizing:border-box;background:#18181b;border:1px solid #27272a;color:#fafafa;border-radius:10px;padding:10px 12px;font:inherit}
     textarea{min-height:80px;resize:vertical}
     button{margin-top:20px;background:#fafafa;color:#09090b;border:0;border-radius:10px;padding:10px 16px;font-weight:650;cursor:pointer}
     button.secondary{background:#27272a;color:#fafafa;margin-top:0}
     button.danger{background:#3f3f46;color:#fafafa;margin-top:0}
+    button.primary{background:#fafafa;color:#09090b;margin-top:0}
     .ok{color:#a1a1aa;font-size:13px;margin-left:10px}
     a{color:#a1a1aa}
     .card{background:#18181b;border:1px solid #27272a;border-radius:12px;padding:16px;margin-top:8px}
+    .card.accent{border-color:#3f3f46}
     .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
     .row button{margin-top:0}
     .token{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;word-break:break-all;color:#d4d4d8;background:#09090b;border:1px solid #27272a;border-radius:8px;padding:10px;min-height:40px}
     .status-pill{display:inline-block;font-size:12px;color:#a1a1aa;border:1px solid #3f3f46;border-radius:999px;padding:4px 10px;margin-top:8px}
+    .status-pill.armed{color:#e4e4e7;border-color:#a1a1aa}
     .check{display:flex;align-items:center;gap:8px;margin:12px 0 0;font-size:13px;color:#d4d4d8}
     .check input{width:auto}
+    details.advanced{margin-top:16px;border-top:1px solid #27272a;padding-top:12px}
+    details.advanced summary{cursor:pointer;color:#a1a1aa;font-size:12px;letter-spacing:.04em;text-transform:uppercase;user-select:none}
+    details.advanced[open] summary{margin-bottom:8px}
+    .steps{margin:0;padding-left:18px;color:#a1a1aa;font-size:13px;line-height:1.55}
+    .steps li{margin:4px 0}
   </style>
 </head>
 <body>
@@ -61,21 +72,47 @@
   <label class="check"><input type="checkbox" id="gateForms" /> Also gate all form submits (noisier; good with Paranoid)</label>
   <div><button id="save">Save</button><span class="ok" id="status"></span></div>
 
-  <h2>Agent bridge</h2>
-  <p class="hint">Connect Claude Desktop, Cursor, or any MCP client via <code>askjev-mcp</code>. Traffic stays on <code>127.0.0.1</code> with a pairing token. Your TypeSafe API key never leaves the extension.</p>
-  <div class="card">
-    <label class="check"><input type="checkbox" id="bridgeEnabled" /> Enable agent bridge</label>
-    <label for="bridgePort">Bridge port</label>
-    <input id="bridgePort" type="number" min="1024" max="65535" value="17373" />
-    <label>Pairing token</label>
-    <div class="token" id="bridgeTokenDisplay">(none — generate one)</div>
-    <div class="row">
-      <button type="button" class="secondary" id="genToken">Generate token</button>
-      <button type="button" class="secondary" id="copyToken">Copy</button>
-      <button type="button" class="danger" id="revokeToken">Revoke</button>
+  <h2>Connect Claude / Cursor</h2>
+  <div class="card accent">
+    <p class="callout">
+      <strong>Claude starts the bridge for you.</strong>
+      There is <strong>no URL to paste</strong>. Auto-connect writes a config so Claude Desktop (or Cursor) launches <code>npx -y askjev-mcp</code> over stdio.
+      The only network path is local <code>ws://127.0.0.1:PORT</code> between askjev-mcp and this extension — automatic, localhost only.
+    </p>
+    <ol class="steps">
+      <li>Click <strong>Auto-connect</strong> (creates a pairing token + arms the bridge).</li>
+      <li>Copy config <em>or</em> download an installer (writes Claude’s config file for you).</li>
+      <li>Restart Claude Desktop / Cursor → extension status shows paired.</li>
+    </ol>
+    <div class="row" style="margin-top:16px">
+      <button type="button" class="primary" id="autoConnect">Auto-connect</button>
+      <button type="button" class="secondary" id="copyClaudeConfig">Copy Claude Desktop config</button>
+      <button type="button" class="secondary" id="copyCursorConfig">Copy Cursor MCP config</button>
     </div>
+    <h3 style="margin-top:18px">Download setup helpers</h3>
+    <div class="row">
+      <button type="button" class="secondary" id="dlMac">AskJev-Connect-Claude.command (macOS)</button>
+      <button type="button" class="secondary" id="dlWin">AskJev-Connect-Claude.bat (Windows)</button>
+      <button type="button" class="secondary" id="dlLinux">AskJev-Connect-Claude.sh (Linux)</button>
+    </div>
+    <p class="hint">macOS: after download, double-click the <code>.command</code> file (or right-click → Open). It merges AskJev into Claude’s config, then prints “Restart Claude Desktop”.</p>
     <div class="status-pill" id="bridgeStatus">bridge off</div>
-    <p class="hint">Then run: <code>ASKJEV_TOKEN=&lt;token&gt; npx askjev-mcp</code> — see docs/AGENT-BRIDGE.md</p>
+    <p class="hint" id="autoStatusLine">Bridge off — click Auto-connect to arm.</p>
+
+    <details class="advanced">
+      <summary>Advanced bridge controls</summary>
+      <label class="check"><input type="checkbox" id="bridgeEnabled" /> Enable agent bridge</label>
+      <label for="bridgePort">Bridge port</label>
+      <input id="bridgePort" type="number" min="1024" max="65535" value="17373" />
+      <label>Pairing token</label>
+      <div class="token" id="bridgeTokenDisplay">(none — generate one)</div>
+      <div class="row">
+        <button type="button" class="secondary" id="genToken">Generate token</button>
+        <button type="button" class="secondary" id="copyToken">Copy token</button>
+        <button type="button" class="danger" id="revokeToken">Revoke</button>
+      </div>
+      <p class="hint">Power users only: terminal launch is an appendix in docs — daily use never needs a shell. Claude/Cursor own the <code>npx</code> process via their config <code>command</code> field.</p>
+    </details>
   </div>
 
   <p class="sub" style="margin-top:28px"><a href="privacy.html">Privacy</a></p>

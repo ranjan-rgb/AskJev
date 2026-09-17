@@ -28,7 +28,17 @@ async function loadPopup(): Promise<void> {
   const token = Boolean(s.bridgeToken && String(s.bridgeToken).trim());
   let bridgeLabel = "Off";
   let bridgeClass = "v bad";
-  if (bridgeOn && token) {
+  let paired = false;
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: "askjev.bridge.status" });
+    if (resp?.ok && resp.bridge?.state === "paired") paired = true;
+  } catch {
+    /* ignore */
+  }
+  if (paired) {
+    bridgeLabel = "Auto";
+    bridgeClass = "v ok";
+  } else if (bridgeOn && token) {
     bridgeLabel = "Armed";
     bridgeClass = "v ok";
   } else if (bridgeOn && !token) {
@@ -37,6 +47,15 @@ async function loadPopup(): Promise<void> {
   }
   setText("bridge", bridgeLabel);
   setClass("bridge", bridgeClass);
+
+  // Subtitle under bridge via title attribute on the cell value
+  const bridgeEl = document.getElementById("bridge");
+  if (bridgeEl) {
+    if (paired) bridgeEl.title = "Paired — Claude/Cursor launched askjev-mcp";
+    else if (bridgeOn && token)
+      bridgeEl.title = "Armed — waiting for Claude";
+    else bridgeEl.title = "";
+  }
 
   setText("mode", bridgeOn ? "Agent" : "Guard");
   setClass("mode", "v ok");
