@@ -4,7 +4,10 @@
   <meta charset="utf-8" />
   <title>AskJev options</title>
   <style>
-    body{font-family:ui-sans-serif,system-ui,sans-serif;background:#09090b;color:#fafafa;margin:0;padding:40px;max-width:640px}
+    body{font-family:ui-sans-serif,system-ui,sans-serif;background:#09090b;color:#fafafa;margin:0;padding:40px;max-width:640px;-webkit-font-smoothing:antialiased}
+    .brand{display:flex;gap:12px;align-items:center;margin-bottom:8px}
+    .mark{width:36px;height:36px;border:1px solid #3f3f46;background:#18181b;display:grid;place-items:center;flex-shrink:0}
+    h1{letter-spacing:.06em;text-transform:uppercase;font-size:18px}
     h1{font-size:22px;margin:0 0 6px}
     h2{font-size:15px;margin:32px 0 8px;color:#e4e4e7;font-weight:600}
     .sub{color:#a1a1aa;margin:0 0 28px;font-size:14px;line-height:1.5}
@@ -27,7 +30,19 @@
   </style>
 </head>
 <body>
-  <h1>AskJev</h1>
+  <div class="brand">
+    <div class="mark" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M10 2.5L17 8.2L14.6 9.4L10 12.2L5.4 9.4L3 8.2L10 2.5Z" fill="#FAFAFA"/>
+        <path d="M10 7.2L14.2 9.1L10 11.2L5.8 9.1L10 7.2Z" fill="#18181B"/>
+        <rect x="6.5" y="14.2" width="7" height="1.4" fill="#A1A1AA"/>
+      </svg>
+    </div>
+    <div>
+      <h1 style="margin:0">AskJev</h1>
+      <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#71717a;margin-top:4px">Configuration</div>
+    </div>
+  </div>
   <p class="sub">Connect TypeSafe Jev. Protection is <strong>on for every site</strong> by default. Allowlist only hosts you trust. Key stays in Chrome sync and is sent only to <code>api.typesafe.ai</code>.</p>
   <label for="apiKey">TypeSafe API key</label>
   <input id="apiKey" type="password" placeholder="tsk_..." autocomplete="off" />

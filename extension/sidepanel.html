@@ -1,38 +1,64 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>AskJev Autopilot</title>
   <style>
-    body{font-family:ui-sans-serif,system-ui,sans-serif;background:#09090b;color:#fafafa;margin:0;padding:16px}
-    h1{font-size:15px;margin:0 0 4px}
-    .sub{color:#a1a1aa;font-size:12px;margin:0 0 14px;line-height:1.4}
-    label{display:block;font-size:11px;color:#a1a1aa;margin:10px 0 4px}
-    textarea,input{width:100%;box-sizing:border-box;background:#18181b;border:1px solid #27272a;color:#fafafa;border-radius:10px;padding:10px;font:inherit}
-    textarea{min-height:90px;resize:vertical}
-    .row{display:flex;gap:8px;margin-top:12px}
-    button{flex:1;border:0;border-radius:10px;padding:10px;font-weight:650;cursor:pointer}
-    #run{background:#fafafa;color:#09090b}
-    #stop{background:#27272a;color:#fafafa}
-    #status{font-size:12px;color:#a1a1aa;margin-top:10px}
-    #bridgeLine{font-size:11px;color:#71717a;margin-top:6px}
-    #log{margin-top:12px;font-size:11px;color:#a1a1aa;white-space:pre-wrap;max-height:50vh;overflow:auto;background:#18181b;border-radius:10px;padding:10px}
+    :root {
+      --bg:#09090b; --panel:#0c0c0e; --line:#27272a; --line-strong:#3f3f46;
+      --text:#fafafa; --mute:#a1a1aa; --dim:#71717a; --hot:#fafafa;
+    }
+    *{box-sizing:border-box}
+    body{font-family:ui-sans-serif,system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:0;-webkit-font-smoothing:antialiased}
+    .shell{min-height:100vh;border-left:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.02),transparent 64px),var(--panel)}
+    .top{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
+    .mark{width:28px;height:28px;border:1px solid var(--line-strong);background:#18181b;display:grid;place-items:center}
+    .name{font-size:12px;font-weight:650;letter-spacing:.08em;text-transform:uppercase}
+    .tag{margin-top:3px;font-size:10px;color:var(--dim);letter-spacing:.12em;text-transform:uppercase}
+    .body{padding:14px 16px 20px}
+    .sub{color:var(--mute);font-size:12px;margin:0 0 14px;line-height:1.45}
+    label{display:block;font-size:10px;color:var(--dim);margin:12px 0 6px;letter-spacing:.14em;text-transform:uppercase}
+    textarea,input{width:100%;background:#09090b;border:1px solid var(--line);color:var(--text);border-radius:0;padding:10px;font:inherit}
+    textarea{min-height:96px;resize:vertical}
+    .row{display:flex;gap:8px;margin-top:14px}
+    button{flex:1;border:1px solid var(--line-strong);border-radius:0;padding:11px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;font-size:11px;cursor:pointer}
+    #run{background:var(--hot);color:#09090b;border-color:var(--hot)}
+    #stop{background:#18181b;color:var(--text)}
+    #status{font-size:11px;color:var(--mute);margin-top:12px;letter-spacing:.06em;text-transform:uppercase}
+    #bridgeLine{font-size:10px;color:var(--dim);margin-top:6px;letter-spacing:.1em;text-transform:uppercase}
+    #log{margin-top:12px;font-size:11px;color:var(--mute);white-space:pre-wrap;max-height:50vh;overflow:auto;background:#09090b;border:1px solid var(--line);padding:10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
   </style>
 </head>
 <body>
-  <h1>AskJev Autopilot</h1>
-  <p class="sub">Jev picks the next click/type/scroll on this tab. Guard still holds irreversible actions.</p>
-  <label for="goal">Goal</label>
-  <textarea id="goal" placeholder='e.g. open settings and find billing — put exact type text in "quotes"'></textarea>
-  <label for="typeText">Text to type (optional override)</label>
-  <input id="typeText" placeholder="used when Jev chooses TYPE_TEXT" />
-  <div class="row">
-    <button id="run">Run</button>
-    <button id="stop">Stop</button>
+  <div class="shell">
+    <header class="top">
+      <div class="mark" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+          <path d="M10 2.5L17 8.2L14.6 9.4L10 12.2L5.4 9.4L3 8.2L10 2.5Z" fill="#FAFAFA"/>
+          <path d="M10 7.2L14.2 9.1L10 11.2L5.8 9.1L10 7.2Z" fill="#18181B"/>
+          <rect x="6.5" y="14.2" width="7" height="1.4" fill="#A1A1AA"/>
+        </svg>
+      </div>
+      <div>
+        <div class="name">AskJev Autopilot</div>
+        <div class="tag">Mission control</div>
+      </div>
+    </header>
+    <div class="body">
+      <p class="sub">Jev picks the next click / type / scroll on this tab. Guard still holds irreversible actions.</p>
+      <label for="goal">Goal</label>
+      <textarea id="goal" placeholder='e.g. open settings and find billing — put exact type text in "quotes"'></textarea>
+      <label for="typeText">Text to type (optional)</label>
+      <input id="typeText" placeholder="used when Jev chooses TYPE_TEXT" />
+      <div class="row">
+        <button id="run">Run</button>
+        <button id="stop">Stop</button>
+      </div>
+      <div id="status">idle</div>
+      <div id="bridgeLine">bridge: off</div>
+      <div id="log"></div>
+    </div>
   </div>
-  <div id="status">idle</div>
-  <div id="bridgeLine">bridge: off</div>
-  <div id="log"></div>
   <script type="module" src="sidepanel.js"></script>
 </body>
 </html>
