@@ -13,6 +13,8 @@ async function loadOptions(): Promise<void> {
     s.enabled !== false;
   (document.getElementById("confirmAsk") as HTMLInputElement).checked =
     s.requireConfirmOnAsk !== false;
+  (document.getElementById("gateForms") as HTMLInputElement).checked =
+    s.gateFormSubmits === true;
 }
 
 document.getElementById("save")!.addEventListener("click", () => {
@@ -43,6 +45,9 @@ document.getElementById("save")!.addEventListener("click", () => {
       enabled: (document.getElementById("enabled") as HTMLInputElement).checked,
       requireConfirmOnAsk: (
         document.getElementById("confirmAsk") as HTMLInputElement
+      ).checked,
+      gateFormSubmits: (
+        document.getElementById("gateForms") as HTMLInputElement
       ).checked,
       model: "jev-latest",
     });
