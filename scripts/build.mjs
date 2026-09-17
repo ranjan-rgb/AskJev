@@ -1,5 +1,5 @@
 import * as esbuild from "esbuild";
-import { mkdirSync, writeFileSync, copyFileSync, existsSync, readdirSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const outDir = "extension";
@@ -12,6 +12,7 @@ await esbuild.build({
     content: "src/content.ts",
     popup: "src/popup.ts",
     options: "src/options.ts",
+    sidepanel: "src/sidepanel.ts",
   },
   bundle: true,
   outdir: outDir,
@@ -24,11 +25,11 @@ await esbuild.build({
 const manifest = {
   manifest_version: 3,
   name: "AskJev",
-  version: "1.2.0",
+  version: "1.3.0",
   description:
-    "Ask TypeSafe Jev before dangerous clicks on every website — not just payments.",
-  permissions: ["storage", "alarms"],
-  host_permissions: ["https://api.typesafe.ai/*"],
+    "Jev autopilot for any website — plus a guard on irreversible clicks.",
+  permissions: ["storage", "alarms", "sidePanel", "activeTab", "tabs"],
+  host_permissions: ["https://api.typesafe.ai/*", "http://*/*", "https://*/*"],
   action: {
     default_title: "AskJev",
     default_popup: "popup.html",
@@ -46,17 +47,20 @@ const manifest = {
     128: "icons/icon128.png",
   },
   options_ui: { page: "options.html", open_in_tab: true },
+  side_panel: { default_path: "sidepanel.html" },
   background: { service_worker: "background.js", type: "module" },
   content_scripts: [
     {
       matches: ["<all_urls>"],
       js: ["content.js"],
-      run_at: "document_start",
-      all_frames: true,
+      run_at: "document_idle",
+      all_frames: false,
     },
   ],
 };
 writeFileSync(join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
 
-// keep icons if present
+if (!existsSync(join(outDir, "sidepanel.html"))) {
+  console.warn("missing sidepanel.html");
+}
 console.log("build ok");
