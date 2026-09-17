@@ -1,4 +1,4 @@
-import { BASE_KEYWORDS } from "./defaults.js";
+import { BASE_KEYWORDS, DESTRUCTIVE_CLASS_RE } from "./defaults.js";
 import type { SystemOneResult } from "./jev.js";
 
 type SettingsCache = {
@@ -6,6 +6,8 @@ type SettingsCache = {
   customKeywords: string[];
   allowlist: string[];
   hasKey: boolean;
+  sensitivity?: string;
+  gateFormSubmits?: boolean;
 };
 
 declare global {
@@ -81,7 +83,30 @@ if (!window.__askjevLoaded) {
     const href =
       clickable instanceof HTMLAnchorElement ? clickable.href || "" : "";
     const re = riskRegex();
-    return re.test(label) || re.test(href);
+    if (re.test(label) || re.test(href)) return true;
+
+    const className =
+      typeof (clickable as HTMLElement).className === "string"
+        ? (clickable as HTMLElement).className
+        : "";
+    if (DESTRUCTIVE_CLASS_RE.test(className)) return true;
+
+    const isSubmit =
+      (clickable instanceof HTMLInputElement &&
+        (clickable.type === "submit" || clickable.type === "button")) ||
+      (clickable instanceof HTMLButtonElement &&
+        (clickable.type === "submit" || clickable.type === "button"));
+    const inForm = Boolean(clickable.closest("form"));
+    const paranoid =
+      settingsCache.sensitivity === "paranoid" ||
+      settingsCache.gateFormSubmits === true;
+    if (paranoid && isSubmit && inForm) return true;
+
+    // Balanced: gate form submits whose label is empty/generic ("OK", "Yes", "Continue")
+    const generic = /^(ok|yes|continue|next|done|save|apply|go)$/i.test(label.trim());
+    if (isSubmit && inForm && generic) return true;
+
+    return false;
   }
 
   function pageSnippet() {

@@ -44,9 +44,9 @@ function buildQuestions(sensitivity: Sensitivity) {
     irreversible: {
       type: "noul" as const,
       instructions:
-        "Would this click permanently move money, delete data, send a message to others, or approve a production change?",
+        "Would this click cause a lasting or hard-to-undo effect on any website — money movement, data loss, sending a message, granting access, publishing, deploying, or changing account/security settings?",
       criteria: {
-        true: "Irreversible or hard to undo: payment, delete, send, deploy, transfer",
+        true: "Hard to undo on any site: pay, delete, send, publish, deploy, revoke, grant access, transfer",
         false: "Reversible browsing or navigation with no lasting side effect",
       },
     },

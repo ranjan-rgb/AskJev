@@ -24,9 +24,9 @@ await esbuild.build({
 const manifest = {
   manifest_version: 3,
   name: "AskJev",
-  version: "1.1.0",
+  version: "1.2.0",
   description:
-    "Ask TypeSafe Jev before dangerous clicks — pay, delete, send, approve — on every site.",
+    "Ask TypeSafe Jev before dangerous clicks on every website — not just payments.",
   permissions: ["storage", "alarms"],
   host_permissions: ["https://api.typesafe.ai/*"],
   action: {
