@@ -1,18 +1,30 @@
-async function load() {
+// src/popup.ts
+async function loadPopup() {
   const s = await chrome.storage.sync.get(null);
   const en = document.getElementById("en");
   const on = s.enabled !== false;
   en.classList.toggle("on", on);
-  document.getElementById("b").textContent = s.stats?.blocked || 0;
-  document.getElementById("a").textContent = s.stats?.asked || 0;
-  document.getElementById("p").textContent = s.stats?.proceeded || 0;
+  document.getElementById("b").textContent = String(
+    s.stats?.blocked || 0
+  );
+  document.getElementById("a").textContent = String(
+    s.stats?.asked || 0
+  );
+  document.getElementById("p").textContent = String(
+    s.stats?.proceeded || 0
+  );
   document.getElementById("key").textContent = s.apiKey ? "key set" : "no key";
 }
-document.getElementById("en").onclick = async () => {
-  const s = await chrome.storage.sync.get(["enabled"]);
-  const next = !(s.enabled !== false);
-  await chrome.storage.sync.set({ enabled: next });
-  load();
-};
-document.getElementById("opts").onclick = () => chrome.runtime.openOptionsPage();
-load();
+document.getElementById("en").addEventListener("click", () => {
+  void (async () => {
+    const s = await chrome.storage.sync.get(["enabled"]);
+    const next = !(s.enabled !== false);
+    await chrome.storage.sync.set({ enabled: next });
+    await loadPopup();
+  })();
+});
+document.getElementById("opts").addEventListener("click", () => {
+  chrome.runtime.openOptionsPage();
+});
+void loadPopup();
+//# sourceMappingURL=popup.js.map

@@ -1,39 +1,32 @@
 # AskJev
 
-**Jev holds fire on dangerous clicks — pay, delete, send, approve — before they land.**
+**Ask TypeSafe Jev before dangerous clicks — on every site.**
 
-Chrome extension. Not a browser agent. The page stays yours. AskJev only decides **proceed / block / ask** using [TypeSafe Jev](https://docs.typesafe.ai/introduction) (System One).
+Chrome MV3 extension written in **TypeScript**. Not a browser agent. AskJev decides **proceed / block / ask** using [TypeSafe Jev](https://docs.typesafe.ai/introduction).
 
-## Why
+## How it connects to the AI
 
-The feed is full of “Jev drives the browser.” AskJev is the opposite product: **a decision gate on irreversible actions**. One misclick on Pay / Delete / Deploy and you’re done. AskJev pauses the click, asks Jev once (Noul + Score + Choice), shows probabilities, then allows or blocks.
+1. Paste your TypeSafe API key in Options.
+2. Risky click (pay / delete / send / approve) is frozen on **every site**.
+3. Background worker → `POST https://api.typesafe.ai/v1/systemone` with your key.
+4. One call: irreversible (noul) + risk (score) + action (choice).
+5. Overlay → proceed / block / ask.
 
-## Install (dev)
+No AskJev server.
 
-1. Chrome → `chrome://extensions` → Developer mode → **Load unpacked** → select `extension/`
-2. Options → paste your TypeSafe API key → Save
-3. Open `demo/index.html` or run `npm run demo` → click **Pay now with card**
-
-## Pack for Chrome Web Store
+## Develop
 
 ```bash
-npm run pack
-# → store/askjev-1.0.0.zip
+npm install
+npm run build
+npm run typecheck
 ```
 
-## Privacy
+Load unpacked → `extension/`
 
-API key stays in Chrome sync storage. Risky-click context (URL, title, snippet, button label) is sent only to `api.typesafe.ai`. No AskJev backend. See `extension/privacy.html`.
+## All sites
 
-## Agent skill
-
-See `docs/AGENT.md` — drop into Claude Code / Cursor so an agent can configure keywords, sensitivity, and allowlists for you.
-
-## Stack
-
-- MV3 service worker + content script
-- TypeSafe `POST /v1/systemone` · model `jev-latest`
-- Zinc UI, zero telemetry by default
+`content_scripts.matches = ["<all_urls>"]`. Allowlist is the only opt-out.
 
 ## License
 
