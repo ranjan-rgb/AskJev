@@ -1,7 +1,33 @@
 <!doctype html>
-<html><head><meta charset="utf-8"/><title>AskJev privacy</title>
-<style>body{font-family:ui-sans-serif,system-ui;background:#09090b;color:#fafafa;max-width:640px;margin:40px auto;padding:0 20px;line-height:1.55}</style>
-</head><body>
-<h1>Privacy</h1>
-<p>API key in Chrome sync storage. Risky-click context goes only to api.typesafe.ai. No AskJev backend. All sites by default; allowlist opt-out.</p>
-</body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AskJev — Privacy</title>
+  <style>
+    body{font-family:ui-sans-serif,system-ui,sans-serif;background:#09090b;color:#fafafa;max-width:640px;margin:40px auto;padding:0 20px;line-height:1.55}
+    h1{font-size:22px;letter-spacing:.04em;text-transform:uppercase}
+    h2{font-size:14px;margin-top:28px;letter-spacing:.08em;text-transform:uppercase;color:#a1a1aa}
+    a{color:#a1a1aa}
+    code{font-size:13px}
+  </style>
+</head>
+<body>
+  <h1>AskJev privacy</h1>
+  <p>AskJev is a Chrome/Brave extension. We do not operate AskJev servers that receive your browsing data.</p>
+
+  <h2>What we store</h2>
+  <p>Settings live in Chrome sync storage on your Google account: TypeSafe API key, sensitivity, keywords, allowlist, optional agent-bridge pairing token, and local stats counters.</p>
+
+  <h2>What leaves your browser</h2>
+  <ul>
+    <li><strong>TypeSafe only:</strong> when Guard or Autopilot needs a decision, AskJev sends page/action context to <code>https://api.typesafe.ai</code> with your TypeSafe API key.</li>
+    <li><strong>Agent bridge (optional):</strong> if you enable it, the extension talks to a local process on <code>ws://127.0.0.1</code> only. That traffic does not go to AskJev servers.</li>
+  </ul>
+
+  <h2>What we do not do</h2>
+  <p>No AskJev analytics backend. No sale of browsing data. No remote code from AskJev. Claude/Cursor only connect if you set up Auto-connect on your machine.</p>
+
+  <h2>Contact</h2>
+  <p>GitHub: <a href="https://github.com/ranjan2829/AskJev">ranjan2829/AskJev</a></p>
+</body>
+</html>
