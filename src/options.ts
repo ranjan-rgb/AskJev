@@ -1,23 +1,103 @@
 import { generateBridgeToken } from "./defaults.js";
+import {
+  buildClientMcpConfig,
+  buildClaudeLinuxSh,
+  buildClaudeMacCommand,
+  buildClaudeWinBat,
+  downloadTextFile,
+} from "./connect-helpers.js";
 
 function setBridgeTokenDisplay(token: string): void {
   const el = document.getElementById("bridgeTokenDisplay") as HTMLElement;
   el.textContent = token || "(none — generate one)";
 }
 
+function setStatus(msg: string): void {
+  (document.getElementById("status") as HTMLElement).textContent = msg;
+}
+
+function setAutoLine(msg: string, armed = false): void {
+  const line = document.getElementById("autoStatusLine") as HTMLElement;
+  line.textContent = msg;
+  const pill = document.getElementById("bridgeStatus") as HTMLElement;
+  pill.classList.toggle("armed", armed);
+}
+
+async function getBridgePort(): Promise<number> {
+  const raw = Number(
+    (document.getElementById("bridgePort") as HTMLInputElement).value,
+  );
+  return raw || 17373;
+}
+
+async function ensureTokenAndArm(): Promise<{ token: string; port: number }> {
+  const cur = await chrome.storage.sync.get(["bridgeToken", "bridgePort"]);
+  let token = String(cur.bridgeToken || "").trim();
+  if (!token) {
+    token = generateBridgeToken();
+  }
+  const port =
+    Number((document.getElementById("bridgePort") as HTMLInputElement).value) ||
+    Number(cur.bridgePort) ||
+    17373;
+  (document.getElementById("bridgeEnabled") as HTMLInputElement).checked = true;
+  (document.getElementById("bridgePort") as HTMLInputElement).value =
+    String(port);
+  await chrome.storage.sync.set({
+    bridgeToken: token,
+    bridgeEnabled: true,
+    bridgePort: port,
+  });
+  setBridgeTokenDisplay(token);
+  return { token, port };
+}
+
 async function refreshBridgeStatus(): Promise<void> {
   const el = document.getElementById("bridgeStatus") as HTMLElement;
+  const s = await chrome.storage.sync.get(["bridgeEnabled", "bridgeToken"]);
+  const armed =
+    s.bridgeEnabled === true && Boolean(String(s.bridgeToken || "").trim());
   try {
-    const resp = await chrome.runtime.sendMessage({ type: "askjev.bridge.status" });
+    const resp = await chrome.runtime.sendMessage({
+      type: "askjev.bridge.status",
+    });
     if (resp?.ok && resp.bridge) {
       const b = resp.bridge as { state: string; detail: string };
       el.textContent = `${b.state}: ${b.detail}`;
+      if (b.state === "paired") {
+        setAutoLine(
+          "Paired — Claude/Cursor launched askjev-mcp; bridge is live.",
+          true,
+        );
+      } else if (armed) {
+        setAutoLine(
+          "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+          true,
+        );
+      } else {
+        setAutoLine("Bridge off — click Auto-connect to arm.", false);
+      }
       return;
     }
   } catch {
     /* ignore */
   }
-  el.textContent = "status unavailable";
+  el.textContent = armed ? "armed (status pending)" : "bridge off";
+  setAutoLine(
+    armed
+      ? "Bridge armed — restart Claude/Cursor to auto-launch MCP"
+      : "Bridge off — click Auto-connect to arm.",
+    armed,
+  );
+}
+
+async function copyText(text: string, okMsg: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    setStatus(okMsg);
+  } catch {
+    setStatus("copy failed — select text manually");
+  }
 }
 
 async function loadOptions(): Promise<void> {
@@ -66,9 +146,7 @@ document.getElementById("save")!.addEventListener("click", () => {
       .split(/\n+/)
       .map((x) => x.trim().toLowerCase())
       .filter(Boolean);
-    const bridgePort = Number(
-      (document.getElementById("bridgePort") as HTMLInputElement).value,
-    ) || 17373;
+    const bridgePort = (await getBridgePort()) || 17373;
     const cur = await chrome.storage.sync.get(["bridgeToken"]);
     await chrome.storage.sync.set({
       apiKey,
@@ -89,7 +167,101 @@ document.getElementById("save")!.addEventListener("click", () => {
       bridgePort,
       bridgeToken: cur.bridgeToken || "",
     });
-    (document.getElementById("status") as HTMLElement).textContent = "saved";
+    setStatus("saved");
+    await refreshBridgeStatus();
+  })();
+});
+
+document.getElementById("autoConnect")!.addEventListener("click", () => {
+  void (async () => {
+    const { token, port } = await ensureTokenAndArm();
+    const cfg = buildClientMcpConfig(token, port);
+    await copyText(
+      cfg,
+      "Auto-connected — Claude Desktop config copied (token filled)",
+    );
+    setAutoLine(
+      "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+      true,
+    );
+    await refreshBridgeStatus();
+  })();
+});
+
+document.getElementById("copyClaudeConfig")!.addEventListener("click", () => {
+  void (async () => {
+    const { token, port } = await ensureTokenAndArm();
+    await copyText(
+      buildClientMcpConfig(token, port),
+      "Claude Desktop config copied — paste into claude_desktop_config.json",
+    );
+    setAutoLine(
+      "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+      true,
+    );
+    await refreshBridgeStatus();
+  })();
+});
+
+document.getElementById("copyCursorConfig")!.addEventListener("click", () => {
+  void (async () => {
+    const { token, port } = await ensureTokenAndArm();
+    await copyText(
+      buildClientMcpConfig(token, port),
+      "Cursor MCP config copied — paste into .cursor/mcp.json or Settings → MCP",
+    );
+    setAutoLine(
+      "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+      true,
+    );
+    await refreshBridgeStatus();
+  })();
+});
+
+document.getElementById("dlMac")!.addEventListener("click", () => {
+  void (async () => {
+    const { token, port } = await ensureTokenAndArm();
+    downloadTextFile(
+      "AskJev-Connect-Claude.command",
+      buildClaudeMacCommand(token, port),
+    );
+    setStatus("Downloaded macOS helper — run once, then restart Claude");
+    setAutoLine(
+      "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+      true,
+    );
+    await refreshBridgeStatus();
+  })();
+});
+
+document.getElementById("dlWin")!.addEventListener("click", () => {
+  void (async () => {
+    const { token, port } = await ensureTokenAndArm();
+    downloadTextFile(
+      "AskJev-Connect-Claude.bat",
+      buildClaudeWinBat(token, port),
+    );
+    setStatus("Downloaded Windows helper — run once, then restart Claude");
+    setAutoLine(
+      "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+      true,
+    );
+    await refreshBridgeStatus();
+  })();
+});
+
+document.getElementById("dlLinux")!.addEventListener("click", () => {
+  void (async () => {
+    const { token, port } = await ensureTokenAndArm();
+    downloadTextFile(
+      "AskJev-Connect-Claude.sh",
+      buildClaudeLinuxSh(token, port),
+    );
+    setStatus("Downloaded Linux helper — run once, then restart Claude");
+    setAutoLine(
+      "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+      true,
+    );
     await refreshBridgeStatus();
   })();
 });
@@ -99,8 +271,7 @@ document.getElementById("genToken")!.addEventListener("click", () => {
     const token = generateBridgeToken();
     await chrome.storage.sync.set({ bridgeToken: token });
     setBridgeTokenDisplay(token);
-    (document.getElementById("status") as HTMLElement).textContent =
-      "token generated — copy into ASKJEV_TOKEN";
+    setStatus("token generated");
     await refreshBridgeStatus();
   })();
 });
@@ -110,17 +281,10 @@ document.getElementById("copyToken")!.addEventListener("click", () => {
     const s = await chrome.storage.sync.get(["bridgeToken"]);
     const token = String(s.bridgeToken || "");
     if (!token) {
-      (document.getElementById("status") as HTMLElement).textContent =
-        "no token to copy";
+      setStatus("no token to copy");
       return;
     }
-    try {
-      await navigator.clipboard.writeText(token);
-      (document.getElementById("status") as HTMLElement).textContent = "copied";
-    } catch {
-      (document.getElementById("status") as HTMLElement).textContent =
-        "copy failed — select token manually";
-    }
+    await copyText(token, "token copied");
   })();
 });
 
@@ -133,8 +297,8 @@ document.getElementById("revokeToken")!.addEventListener("click", () => {
     (document.getElementById("bridgeEnabled") as HTMLInputElement).checked =
       false;
     setBridgeTokenDisplay("");
-    (document.getElementById("status") as HTMLElement).textContent =
-      "token revoked";
+    setStatus("token revoked");
+    setAutoLine("Bridge off — click Auto-connect to arm.", false);
     await refreshBridgeStatus();
   })();
 });
