@@ -1,26 +1,35 @@
-# AskJev agent skill
+# AskJev agent notes
 
 Use this when helping Ranjan configure or extend AskJev.
 
 ## Product
 
-AskJev is a Chrome MV3 extension. It intercepts risky clicks and asks TypeSafe Jev for three answers in one call: `irreversible` (noul), `risk` (score), `action` (choice: proceed|block|ask).
+AskJev is a Chrome/Brave MV3 extension (TypeScript → `extension/`).
+
+Two modes:
+
+1. **Autopilot** — side panel goal → DOM snapshot → TypeSafe Jev Choice for next action → execute → loop. Stops on DONE/BLOCKED, max steps, or irreversible ≥ 0.65.
+2. **Guard** — intercepts risky clicks; one System One call returns `irreversible` (noul), `risk` (score), `action` (choice: proceed|block|ask).
+
+**AI connection:** only `POST https://api.typesafe.ai/v1/systemone` with the user’s TypeSafe API key. **Not Claude**, not OpenAI chat, no AskJev backend.
 
 ## Configure for the user
 
-1. Open extension options (or tell them: extension icon → Options).
-2. Ensure TypeSafe API key is set.
-3. Set sensitivity: `chill` | `balanced` | `paranoid`.
-4. Add custom keywords for their workflows (e.g. `refund`, `revoke`, `wire`).
-5. Allowlist trusted hosts (bank they always use intentionally, localhost).
+1. Load unpacked → `extension/` after `npm run build`
+2. Options → TypeSafe API key
+3. Sensitivity: `chill` | `balanced` | `paranoid`
+4. Custom keywords + allowlist (allowlist = opt-out only)
+5. Popup → Open Autopilot for goal-driven runs
 
 ## Extend safely
 
-- Keep questions atomic (TypeSafe guidance).
-- Never log or commit API keys.
-- Prefer allowlist over weakening global keywords.
-- When adding agent automation: agents should call the same decide path, not bypass it.
+- Keep Jev questions atomic (TypeSafe guidance)
+- Never log or commit API keys
+- Prefer allowlist over weakening global keywords
+- Autopilot must keep using the irreversible noul gate — do not bypass Guard for pay/delete/send-class steps
+- Agents automating the browser should call the same decide / next-step paths, not raw clicks around them
 
-## Demo for X
+## Demo
 
-Load unpacked → demo checkout → Pay now → capture overlay with irreversible / risk / jev choice.
+- Guard: `npm run demo` → Pay / Delete / Send on localhost
+- Autopilot: side panel goal on any site (start low-risk)
