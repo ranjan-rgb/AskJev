@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "AskJev",
-  "version": "1.0.0",
-  "description": "Jev holds fire on dangerous clicks \u2014 pay, delete, send, approve \u2014 before they land.",
+  "version": "1.1.0",
+  "description": "Ask TypeSafe Jev before dangerous clicks — pay, delete, send, approve — on every site.",
   "permissions": [
     "storage",
     "alarms"
