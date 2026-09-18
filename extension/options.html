@@ -1,87 +1,309 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AskJev options</title>
   <style>
-    body{font-family:ui-sans-serif,system-ui,sans-serif;background:#09090b;color:#fafafa;margin:0;padding:40px;max-width:680px;-webkit-font-smoothing:antialiased}
-    .brand{display:flex;gap:12px;align-items:center;margin-bottom:8px}
-    .mark{width:36px;height:36px;border:1px solid #3f3f46;background:#18181b;display:grid;place-items:center;flex-shrink:0}
-    h1{font-size:20px;margin:0;font-weight:600;letter-spacing:-0.02em}
-    h2{font-size:15px;margin:32px 0 8px;color:#e4e4e7;font-weight:600}
-    h3{font-size:13px;margin:0 0 8px;color:#d4d4d8;font-weight:600}
-    .sub{color:#a1a1aa;margin:0 0 28px;font-size:14px;line-height:1.5}
-    .hint{color:#71717a;font-size:12px;margin:6px 0 0;line-height:1.45}
-    .callout{color:#d4d4d8;font-size:13px;line-height:1.5;margin:0 0 12px;padding:10px 12px;background:#09090b;border:1px solid #3f3f46;border-radius:10px}
-    .callout strong{color:#fafafa}
-    label{display:block;font-size:12px;color:#a1a1aa;margin:16px 0 6px}
-    input,select,textarea{width:100%;box-sizing:border-box;background:#18181b;border:1px solid #27272a;color:#fafafa;border-radius:10px;padding:10px 12px;font:inherit}
-    textarea{min-height:80px;resize:vertical}
-    button{margin-top:20px;background:#fafafa;color:#09090b;border:0;border-radius:10px;padding:10px 16px;font-weight:650;cursor:pointer}
-    button.secondary{background:#27272a;color:#fafafa;margin-top:0}
-    button.danger{background:#3f3f46;color:#fafafa;margin-top:0}
-    button.primary{background:#fafafa;color:#09090b;margin-top:0}
-    .ok{color:#a1a1aa;font-size:13px;margin-left:10px}
-    a{color:#a1a1aa}
-    .card{background:#18181b;border:1px solid #27272a;border-radius:12px;padding:16px;margin-top:8px}
-    .card.accent{border-color:#3f3f46}
-    .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-    .row button{margin-top:0}
-    .token{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;word-break:break-all;color:#d4d4d8;background:#09090b;border:1px solid #27272a;border-radius:8px;padding:10px;min-height:40px}
-    .status-pill{display:inline-block;font-size:12px;color:#a1a1aa;border:1px solid #3f3f46;border-radius:999px;padding:4px 10px;margin-top:8px}
-    .status-pill.armed{color:#e4e4e7;border-color:#a1a1aa}
-    .check{display:flex;align-items:center;gap:8px;margin:12px 0 0;font-size:13px;color:#d4d4d8}
-    .check input{width:auto}
-    details.advanced{margin-top:16px;border-top:1px solid #27272a;padding-top:12px}
-    details.advanced summary{cursor:pointer;color:#a1a1aa;font-size:12px;user-select:none}
-    details.advanced[open] summary{margin-bottom:8px}
-    .steps{margin:0;padding-left:18px;color:#a1a1aa;font-size:13px;line-height:1.55}
-    .steps li{margin:4px 0}
+    :root {
+      --bg: #09090b;
+      --elevated: #0c0c0e;
+      --card: #18181b;
+      --hover: #1f1f23;
+      --line: #27272a;
+      --line2: #3f3f46;
+      --text: #fafafa;
+      --mute: #a1a1aa;
+      --dim: #71717a;
+      --soft: #d4d4d8;
+      --focus: #e4e4e7;
+      --radius: 10px;
+      --radius-lg: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 40px 24px 64px;
+      max-width: 680px;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    :focus { outline: none; }
+    :focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+    .brand {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .mark {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--line2);
+      background: var(--card);
+      border-radius: var(--radius);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .brand-sub {
+      font-size: 12px;
+      color: var(--dim);
+      margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    h2 {
+      font-size: 15px;
+      margin: 32px 0 8px;
+      color: var(--soft);
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    h3 {
+      font-size: 13px;
+      margin: 0 0 8px;
+      color: var(--soft);
+      font-weight: 600;
+    }
+    .sub {
+      color: var(--mute);
+      margin: 0 0 28px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .hint {
+      color: var(--dim);
+      font-size: 12px;
+      margin: 6px 0 0;
+      line-height: 1.45;
+    }
+    .callout {
+      color: var(--soft);
+      font-size: 13px;
+      line-height: 1.5;
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      background: var(--elevated);
+      border: 1px solid var(--line2);
+      border-radius: var(--radius);
+    }
+    .callout strong { color: var(--text); }
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--mute);
+      margin: 16px 0 6px;
+    }
+    input, select, textarea {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--line);
+      color: var(--text);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      font: inherit;
+      transition: border-color 0.12s ease;
+    }
+    input:hover, select:hover, textarea:hover {
+      border-color: var(--line2);
+    }
+    input:focus-visible, select:focus-visible, textarea:focus-visible {
+      border-color: var(--soft);
+      outline: none;
+      box-shadow: 0 0 0 1px var(--soft);
+    }
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+    button {
+      margin-top: 20px;
+      background: var(--text);
+      color: var(--bg);
+      border: 1px solid var(--text);
+      border-radius: var(--radius);
+      padding: 10px 16px;
+      font-weight: 650;
+      cursor: pointer;
+      font: inherit;
+    }
+    button:hover { filter: brightness(0.94); }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      filter: none;
+    }
+    button.secondary {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--line2);
+      margin-top: 0;
+    }
+    button.secondary:hover { background: var(--hover); filter: none; }
+    button.danger {
+      background: var(--card);
+      color: var(--soft);
+      border: 1px solid var(--line2);
+      margin-top: 0;
+    }
+    button.danger:hover { border-color: #52525b; filter: none; }
+    button.primary {
+      background: var(--text);
+      color: var(--bg);
+      border-color: var(--text);
+      margin-top: 0;
+    }
+    .ok {
+      color: var(--mute);
+      font-size: 13px;
+      margin-left: 10px;
+    }
+    a { color: var(--mute); }
+    a:hover { color: var(--text); }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      color: var(--soft);
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      margin-top: 8px;
+    }
+    .card.accent { border-color: var(--line2); }
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .row button { margin-top: 0; }
+    .token {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      word-break: break-all;
+      color: var(--soft);
+      background: var(--elevated);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      min-height: 40px;
+    }
+    .status-pill {
+      display: inline-block;
+      font-size: 12px;
+      color: var(--mute);
+      border: 1px solid var(--line2);
+      border-radius: 999px;
+      padding: 4px 10px;
+      margin-top: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+    .status-pill.armed {
+      color: var(--soft);
+      border-color: var(--mute);
+    }
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 12px 0 0;
+      font-size: 13px;
+      color: var(--soft);
+    }
+    .check input { width: auto; margin: 0; accent-color: var(--soft); }
+    details.advanced {
+      margin-top: 16px;
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+    details.advanced summary {
+      cursor: pointer;
+      color: var(--mute);
+      font-size: 12px;
+      user-select: none;
+    }
+    details.advanced summary:hover { color: var(--text); }
+    details.advanced[open] summary { margin-bottom: 8px; }
+    .steps {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--mute);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .steps li { margin: 4px 0; }
+    @media (prefers-reduced-motion: reduce) {
+      input, select, textarea, button { transition: none; }
+    }
   </style>
 </head>
 <body>
   <div class="brand">
     <div class="mark" aria-hidden="true">
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M10 2.5L17 8.2L14.6 9.4L10 12.2L5.4 9.4L3 8.2L10 2.5Z" fill="#FAFAFA"/>
         <path d="M10 7.2L14.2 9.1L10 11.2L5.8 9.1L10 7.2Z" fill="#18181B"/>
         <rect x="6.5" y="14.2" width="7" height="1.4" fill="#A1A1AA"/>
       </svg>
     </div>
     <div>
-      <h1 style="margin:0">AskJev</h1>
-      <div style="font-size:12px;color:#71717a;margin-top:4px">Settings</div>
+      <h1>AskJev</h1>
+      <div class="brand-sub">Settings · v1.5.5</div>
     </div>
   </div>
+
   <p class="sub">Connect TypeSafe Jev. Protection is <strong>on for every site</strong> by default. Allowlist only hosts you trust. Key stays in Chrome sync and is sent only to <code>api.typesafe.ai</code>.</p>
+
   <label for="apiKey">TypeSafe API key</label>
-  <input id="apiKey" type="password" placeholder="tsk_..." autocomplete="off" />
+  <input id="apiKey" type="password" placeholder="tsk_..." autocomplete="off" spellcheck="false" />
+
   <label for="sensitivity">Sensitivity</label>
   <select id="sensitivity">
     <option value="chill">Chill</option>
     <option value="balanced" selected>Balanced</option>
     <option value="paranoid">Paranoid</option>
   </select>
+
   <label for="keywords">Extra keywords (comma-separated)</label>
   <input id="keywords" placeholder="refund, revoke, wipe" />
+
   <label for="allowlist">Allowlist hosts (one per line)</label>
   <textarea id="allowlist" placeholder="localhost"></textarea>
+
   <label class="check"><input type="checkbox" id="enabled" checked /> Protection enabled</label>
   <label class="check"><input type="checkbox" id="confirmAsk" checked /> Always show overlay on ask</label>
   <label class="check"><input type="checkbox" id="gateForms" /> Also gate all form submits (noisier; good with Paranoid)</label>
-  <div><button id="save">Save</button><span class="ok" id="status"></span></div>
+
+  <div>
+    <button type="button" id="save">Save</button>
+    <span class="ok" id="status" role="status" aria-live="polite"></span>
+  </div>
 
   <h2>Connect Claude / Cursor</h2>
   <div class="card accent">
     <p class="callout">
-      <strong>Claude starts the bridge for you.</strong>
-      There is <strong>no URL to paste</strong>. Auto-connect writes a config so Claude Desktop (or Cursor) launches <code>npx -y askjev-mcp</code> over stdio.
-      The only network path is local <code>ws://127.0.0.1:PORT</code> between askjev-mcp and this extension — automatic, localhost only.
+      <strong>Preferred: Claude Desktop .mcpb one-click.</strong>
+      Install <code>askjev-1.5.5.mcpb</code> from the GitHub release (Settings → Extensions → Advanced → Install Extension), then paste the pairing token from Advanced below. No daily terminal.
+      Fallback: Auto-connect copies JSON so Claude/Cursor launches <code>npx -y askjev-mcp</code> over stdio. Local <code>ws://127.0.0.1</code> only.
     </p>
     <ol class="steps">
       <li>Click <strong>Auto-connect</strong> (creates a pairing token + arms the bridge).</li>
-      <li>Copy config <em>or</em> download an installer (writes Claude’s config file for you).</li>
-      <li>Restart Claude Desktop / Cursor → extension status shows paired.</li>
+      <li>Install the <code>.mcpb</code> <em>or</em> copy config / download an installer.</li>
+      <li>Restart Claude Desktop / Cursor → status shows paired.</li>
     </ol>
     <div class="row" style="margin-top:16px">
       <button type="button" class="primary" id="autoConnect">Auto-connect</button>
@@ -104,17 +326,17 @@
       <label for="bridgePort">Bridge port</label>
       <input id="bridgePort" type="number" min="1024" max="65535" value="17373" />
       <label>Pairing token</label>
-      <div class="token" id="bridgeTokenDisplay">(none — generate one)</div>
+      <div class="token" id="bridgeTokenDisplay" aria-live="polite">(none — generate one)</div>
       <div class="row">
         <button type="button" class="secondary" id="genToken">Generate token</button>
         <button type="button" class="secondary" id="copyToken">Copy token</button>
         <button type="button" class="danger" id="revokeToken">Revoke</button>
       </div>
-      <p class="hint">Power users only: terminal launch is an appendix in docs — daily use never needs a shell. Claude/Cursor own the <code>npx</code> process via their config <code>command</code> field.</p>
+      <p class="hint">For .mcpb installs: paste this token into Claude’s AskJev extension settings (<code>askjev_token</code>). Power users: terminal launch is an appendix in docs — daily use never needs a shell.</p>
     </details>
   </div>
 
-  <p class="sub" style="margin-top:28px"><a href="privacy.html">Privacy</a></p>
+  <p class="sub" style="margin-top:28px"><a href="privacy.html">Privacy</a> · <a href="https://github.com/ranjan2829/AskJev/blob/main/docs/AGENT-BRIDGE.md" target="_blank" rel="noopener">Bridge docs</a></p>
   <script type="module" src="options.js"></script>
 </body>
 </html>

@@ -1,55 +1,157 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AskJev Autopilot</title>
   <style>
     :root {
-      --bg:#09090b; --card:#18181b; --line:#27272a;
-      --text:#fafafa; --mute:#a1a1aa; --dim:#71717a;
+      --bg: #09090b;
+      --elevated: #0c0c0e;
+      --card: #18181b;
+      --hover: #1f1f23;
+      --line: #27272a;
+      --line2: #3f3f46;
+      --text: #fafafa;
+      --mute: #a1a1aa;
+      --dim: #71717a;
+      --soft: #d4d4d8;
+      --focus: #e4e4e7;
+      --radius: 10px;
     }
-    *{box-sizing:border-box}
-    body{
-      margin:0; padding:16px;
-      background:var(--bg); color:var(--text);
-      font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",ui-sans-serif,system-ui,sans-serif;
-      -webkit-font-smoothing:antialiased;
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
     }
-    .head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-    .logo{
-      width:28px;height:28px;border-radius:8px;
-      background:var(--card);border:1px solid var(--line);
-      display:grid;place-items:center;
+    :focus { outline: none; }
+    :focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
     }
-    h1{margin:0;font-size:15px;font-weight:600;letter-spacing:-0.01em}
-    .sub{color:var(--mute);font-size:12px;margin:0 0 16px;line-height:1.5}
-    label{display:block;font-size:12px;color:var(--dim);margin:12px 0 6px}
-    textarea,input{
-      width:100%;background:var(--card);border:1px solid var(--line);
-      color:var(--text);border-radius:10px;padding:10px 12px;font:inherit;
+    .head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
     }
-    textarea{min-height:100px;resize:vertical}
-    .row{display:flex;gap:8px;margin-top:14px}
-    button{
-      flex:1;border:0;border-radius:10px;padding:11px;
-      font-weight:600;font-size:12px;cursor:pointer;
+    .logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      display: grid;
+      place-items: center;
     }
-    #run{background:#fafafa;color:#09090b}
-    #stop{background:var(--card);color:var(--text);border:1px solid var(--line)}
-    #status{font-size:12px;color:var(--mute);margin-top:12px}
-    #bridgeLine{font-size:11px;color:var(--dim);margin-top:4px}
-    #log{
-      margin-top:12px;font-size:11px;color:var(--mute);
-      white-space:pre-wrap;max-height:45vh;overflow:auto;
-      background:var(--card);border:1px solid var(--line);border-radius:10px;
-      padding:10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    h1 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .sub {
+      color: var(--mute);
+      font-size: 12px;
+      margin: 0 0 16px;
+      line-height: 1.5;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--dim);
+      margin: 12px 0 6px;
+    }
+    textarea, input {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--line);
+      color: var(--text);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      font: inherit;
+    }
+    textarea:hover, input:hover { border-color: var(--line2); }
+    textarea:focus-visible, input:focus-visible {
+      border-color: var(--soft);
+      outline: none;
+      box-shadow: 0 0 0 1px var(--soft);
+    }
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    button {
+      flex: 1;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      padding: 11px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      font: inherit;
+    }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    #run {
+      background: var(--text);
+      color: var(--bg);
+      border-color: var(--text);
+    }
+    #run:hover:not(:disabled) { filter: brightness(0.94); }
+    #stop {
+      background: var(--card);
+      color: var(--text);
+      border-color: var(--line);
+    }
+    #stop:hover:not(:disabled) { background: var(--hover); }
+    #status {
+      font-size: 12px;
+      color: var(--mute);
+      margin-top: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+    #bridgeLine {
+      font-size: 11px;
+      color: var(--dim);
+      margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    #log {
+      margin-top: 12px;
+      font-size: 11px;
+      color: var(--mute);
+      white-space: pre-wrap;
+      max-height: 45vh;
+      overflow: auto;
+      background: var(--elevated);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      line-height: 1.5;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button, textarea, input { transition: none; }
     }
   </style>
 </head>
 <body>
   <div class="head">
     <div class="logo" aria-hidden="true">
-      <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M10 2.5L17 8.2L14.6 9.4L10 12.2L5.4 9.4L3 8.2L10 2.5Z" fill="#FAFAFA"/>
         <path d="M10 7.2L14.2 9.1L10 11.2L5.8 9.1L10 7.2Z" fill="#18181B"/>
         <rect x="6.5" y="14.2" width="7" height="1.4" fill="#A1A1AA"/>
@@ -61,14 +163,14 @@
   <label for="goal">Goal</label>
   <textarea id="goal" placeholder='e.g. open settings and find billing — put exact type text in "quotes"'></textarea>
   <label for="typeText">Text to type (optional)</label>
-  <input id="typeText" placeholder="Used when Jev chooses TYPE_TEXT" />
+  <input id="typeText" placeholder="Used when Jev chooses TYPE_TEXT" autocomplete="off" />
   <div class="row">
-    <button id="run">Run</button>
-    <button id="stop">Stop</button>
+    <button type="button" id="run">Run</button>
+    <button type="button" id="stop">Stop</button>
   </div>
-  <div id="status">idle</div>
+  <div id="status" role="status" aria-live="polite">idle</div>
   <div id="bridgeLine">bridge: off</div>
-  <div id="log"></div>
+  <div id="log" aria-label="Autopilot log"></div>
   <script type="module" src="sidepanel.js"></script>
 </body>
 </html>

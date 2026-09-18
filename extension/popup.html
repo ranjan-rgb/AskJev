@@ -1,41 +1,60 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AskJev</title>
   <style>
     :root {
       --bg: #09090b;
+      --elevated: #0c0c0e;
       --card: #18181b;
+      --hover: #1f1f23;
       --line: #27272a;
+      --line2: #3f3f46;
       --text: #fafafa;
       --mute: #a1a1aa;
       --dim: #71717a;
-      --ok: #4ade80;
-      --warn: #fbbf24;
+      --soft: #d4d4d8;
+      --ok: #b8c4b0;
+      --warn: #c4b89a;
       --off: #52525b;
+      --danger: #c4a4a4;
+      --danger-bg: #1a1212;
+      --danger-line: #3f2a2a;
+      --focus: #e4e4e7;
+      --radius: 10px;
+      --radius-lg: 12px;
     }
     * { box-sizing: border-box; }
+    html, body { margin: 0; }
     body {
-      margin: 0;
       width: 300px;
       background: var(--bg);
       color: var(--text);
       font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
       -webkit-font-smoothing: antialiased;
     }
+    :focus { outline: none; }
+    :focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
     .wrap { padding: 14px; }
     .head {
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
     .logo {
-      width: 32px; height: 32px;
+      width: 32px;
+      height: 32px;
       border-radius: 9px;
       background: var(--card);
       border: 1px solid var(--line);
-      display: grid; place-items: center;
+      display: grid;
+      place-items: center;
       flex-shrink: 0;
     }
     .titles { flex: 1; min-width: 0; }
@@ -52,37 +71,59 @@
     }
     .switch {
       appearance: none;
-      width: 40px; height: 24px;
+      width: 40px;
+      height: 24px;
       border-radius: 999px;
-      border: 0;
-      background: #3f3f46;
+      border: 1px solid var(--line2);
+      background: var(--line2);
       position: relative;
       cursor: pointer;
       flex-shrink: 0;
+      transition: background 0.12s ease, border-color 0.12s ease;
     }
     .switch::after {
       content: "";
       position: absolute;
-      top: 3px; left: 3px;
-      width: 18px; height: 18px;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
-      background: #fff;
-      transition: transform .15s ease;
+      background: var(--soft);
+      transition: transform 0.12s ease, background 0.12s ease;
     }
-    .switch.on { background: #fafafa; }
-    .switch.on::after { transform: translateX(16px); background: #09090b; }
+    .switch.on {
+      background: var(--text);
+      border-color: var(--text);
+    }
+    .switch.on::after {
+      transform: translateX(16px);
+      background: var(--bg);
+    }
+    #warn {
+      display: none;
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      background: var(--danger-bg);
+      border: 1px solid var(--danger-line);
+      color: var(--danger);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    #warn.show { display: block; }
     .card {
       background: var(--card);
       border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 10px 12px;
+      border-radius: var(--radius-lg);
+      padding: 4px 12px;
       margin-bottom: 10px;
     }
     .status-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 6px 0;
+      padding: 8px 0;
       font-size: 12px;
     }
     .status-row + .status-row { border-top: 1px solid var(--line); }
@@ -93,11 +134,14 @@
       gap: 6px;
       font-weight: 500;
       color: var(--text);
+      font-variant-numeric: tabular-nums;
     }
     .dot {
-      width: 6px; height: 6px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: var(--off);
+      flex-shrink: 0;
     }
     .dot.ok { background: var(--ok); }
     .dot.warn { background: var(--warn); }
@@ -110,11 +154,11 @@
     .metric {
       background: var(--card);
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
       padding: 10px;
       text-align: left;
     }
-    .metric .k { font-size: 11px; color: var(--dim); }
+    .metric .k { font-size: 11px; color: var(--dim); letter-spacing: 0.01em; }
     .metric .n {
       margin-top: 4px;
       font-size: 18px;
@@ -128,23 +172,31 @@
       border: 1px solid var(--line);
       background: var(--card);
       color: var(--text);
-      border-radius: 10px;
+      border-radius: var(--radius);
       padding: 10px 12px;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
       text-align: center;
+      font-family: inherit;
+    }
+    .btn:hover { background: var(--hover); }
+    .btn:active { background: var(--elevated); }
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
     .btn.primary {
-      background: #fafafa;
-      color: #09090b;
-      border-color: #fafafa;
+      background: var(--text);
+      color: var(--bg);
+      border-color: var(--text);
     }
-    .btn:hover { filter: brightness(1.05); }
+    .btn.primary:hover { filter: brightness(0.94); }
     .foot {
       margin-top: 12px;
       display: flex;
       justify-content: space-between;
+      align-items: center;
       font-size: 11px;
       color: var(--dim);
     }
@@ -155,16 +207,20 @@
       color: var(--mute);
       font-size: 11px;
       cursor: pointer;
-      padding: 0;
+      padding: 2px 0;
+      font-family: inherit;
     }
     .foot button:hover { color: var(--text); }
+    @media (prefers-reduced-motion: reduce) {
+      .switch, .switch::after { transition: none; }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="head">
       <div class="logo" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M10 2.5L17 8.2L14.6 9.4L10 12.2L5.4 9.4L3 8.2L10 2.5Z" fill="#FAFAFA"/>
           <path d="M10 7.2L14.2 9.1L10 11.2L5.8 9.1L10 7.2Z" fill="#18181B"/>
           <rect x="6.5" y="14.2" width="7" height="1.4" fill="#A1A1AA"/>
@@ -177,7 +233,9 @@
       <button class="switch" id="en" type="button" aria-label="Toggle protection" aria-pressed="true"></button>
     </div>
 
-    <div class="card">
+    <div id="warn" role="alert">Add a TypeSafe API key in Settings to run Autopilot and Guard.</div>
+
+    <div class="card" role="status" aria-live="polite">
       <div class="status-row">
         <span class="l">API key</span>
         <span class="r"><span class="dot" id="keyDot"></span><span id="key">—</span></span>
@@ -192,7 +250,7 @@
       </div>
     </div>
 
-    <div class="metrics">
+    <div class="metrics" aria-label="Guard counters">
       <div class="metric"><div class="k">Blocked</div><div class="n" id="b">0</div></div>
       <div class="metric"><div class="k">Asked</div><div class="n" id="a">0</div></div>
       <div class="metric"><div class="k">Allowed</div><div class="n" id="p">0</div></div>
@@ -204,7 +262,7 @@
     </div>
 
     <div class="foot">
-      <span id="ver">v1.5.1</span>
+      <span id="ver">v1.5.5</span>
       <button type="button" id="docs">Bridge help</button>
     </div>
   </div>
