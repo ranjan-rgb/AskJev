@@ -40,6 +40,9 @@ if (!existsSync(join(serverDir, "index.js"))) {
   process.exit(1);
 }
 
+// Keep empty-dir placeholder for git after pack staging
+writeFileSync(join(serverDir, ".gitkeep"), "");
+
 // Sync version into mcpb manifest + package.json
 const manifestPath = join(mcpbDir, "manifest.json");
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
