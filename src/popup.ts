@@ -37,6 +37,11 @@ async function loadPopup(): Promise<void> {
     /* ignore */
   }
 
+  const connectHint = document.getElementById("connectHint");
+  if (connectHint) {
+    connectHint.style.display = paired ? "none" : "";
+  }
+
   if (paired) {
     setText("bridge", "Connected");
     setDot("bridgeDot", "ok");

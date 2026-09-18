@@ -2,6 +2,10 @@
  * TypeSafe System One client for AskJev MCP autopilot.
  * Decisions use Noul / Choice / Score — not a Claude LLM planner.
  */
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
 export const SYSTEM_ONE_URL = "https://api.typesafe.ai/v1/systemone";
 
 export type AutopilotAction =
@@ -44,22 +48,34 @@ const ACTIONS: AutopilotAction[] = [
   "BLOCKED",
 ];
 
-/** Resolve TypeSafe / AskJev API key from env (never log the value). */
+/** Read ~/.askjev/api-key if present (written by Auto-connect merge script). */
+function readAskjevApiKeyFile(): string | null {
+  try {
+    const p = join(homedir(), ".askjev", "api-key");
+    if (!existsSync(p)) return null;
+    const k = readFileSync(p, "utf8").trim();
+    return k || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve TypeSafe / AskJev API key from env or ~/.askjev/api-key (never log the value). */
 export function resolveApiKey(): string | null {
   const k = (
     process.env.ASKJEV_API_KEY ||
     process.env.TYPESAFE_API_KEY ||
     ""
   ).trim();
-  return k || null;
+  if (k) return k;
+  return readAskjevApiKeyFile();
 }
 
 export function missingApiKeyError(): Error {
   return new Error(
     "AskJev needs a TypeSafe API key for multi-step goals. " +
-      "Set ASKJEV_API_KEY (or TYPESAFE_API_KEY) in Claude/Cursor mcpServers.askjev.env, " +
-      "or use Extension Options → Auto-connect after saving your TypeSafe key. " +
-      "Get a key at https://typesafe.ai — then restart Claude/Cursor.",
+      "Add TypeSafe API key in AskJev Options, then Auto-connect (or write ~/.askjev/api-key). " +
+      "Get a key at https://typesafe.ai — then quit & reopen Claude.",
   );
 }
 
