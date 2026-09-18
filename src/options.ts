@@ -4,6 +4,7 @@ import {
   buildClaudeLinuxSh,
   buildClaudeMacCommand,
   buildClaudeWinBat,
+  detectConnectPlatform,
   downloadTextFile,
 } from "./connect-helpers.js";
 
@@ -52,7 +53,6 @@ async function ensureTokenAndArm(): Promise<{ token: string; port: number }> {
   return { token, port };
 }
 
-
 async function getConnectOpts(): Promise<{
   token: string;
   port: number;
@@ -67,6 +67,37 @@ async function getConnectOpts(): Promise<{
   return { token, port, apiKey };
 }
 
+/** Persist typed API key so Auto-connect / Save share the same happy path. */
+async function saveApiKeyIfTyped(): Promise<string | undefined> {
+  const fromInput = (
+    document.getElementById("apiKey") as HTMLInputElement
+  ).value.trim();
+  if (fromInput) {
+    await chrome.storage.sync.set({ apiKey: fromInput });
+  }
+  return fromInput || undefined;
+}
+
+function downloadConnectScript(opts: {
+  token: string;
+  port: number;
+  apiKey?: string;
+}): { filename: string } {
+  const platform = detectConnectPlatform();
+  if (platform === "win") {
+    downloadTextFile("AskJev-Connect-Claude.bat", buildClaudeWinBat(opts));
+    return { filename: "AskJev-Connect-Claude.bat" };
+  }
+  if (platform === "linux") {
+    downloadTextFile("AskJev-Connect-Claude.sh", buildClaudeLinuxSh(opts));
+    return { filename: "AskJev-Connect-Claude.sh" };
+  }
+  downloadTextFile(
+    "AskJev-Connect-Claude.command",
+    buildClaudeMacCommand(opts),
+  );
+  return { filename: "AskJev-Connect-Claude.command" };
+}
 
 async function refreshBridgeStatus(): Promise<void> {
   const el = document.getElementById("bridgeStatus") as HTMLElement;
@@ -87,7 +118,7 @@ async function refreshBridgeStatus(): Promise<void> {
         );
       } else if (armed) {
         setAutoLine(
-          "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+          "Bridge armed — double-click Connect script, then quit & reopen Claude",
           true,
         );
       } else {
@@ -101,7 +132,7 @@ async function refreshBridgeStatus(): Promise<void> {
   el.textContent = armed ? "armed (status pending)" : "bridge off";
   setAutoLine(
     armed
-      ? "Bridge armed — restart Claude/Cursor to auto-launch MCP"
+      ? "Bridge armed — double-click Connect script, then quit & reopen Claude"
       : "Bridge off — click Auto-connect to arm.",
     armed,
   );
@@ -190,16 +221,25 @@ document.getElementById("save")!.addEventListener("click", () => {
 
 document.getElementById("autoConnect")!.addEventListener("click", () => {
   void (async () => {
+    await saveApiKeyIfTyped();
     const opts = await getConnectOpts();
+    const { filename } = downloadConnectScript(opts);
     const cfg = buildClientMcpConfig(opts);
-    await copyText(
-      cfg,
-      opts.apiKey
-        ? "Auto-connected — Claude config copied (token + TypeSafe API key)"
-        : "Auto-connected — Claude Desktop config copied (token filled; save TypeSafe API key for multi-step goals)",
-    );
+    try {
+      await navigator.clipboard.writeText(cfg);
+    } catch {
+      /* JSON backup is optional */
+    }
+    let msg =
+      "Downloaded Connect script — double-click it once, then quit & reopen Claude. Then chat normally.";
+    if (!opts.apiKey) {
+      msg =
+        "Save TypeSafe API key above first — multi-step Autopilot needs it. " +
+        msg;
+    }
+    setStatus(msg);
     setAutoLine(
-      "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+      `Downloaded ${filename} — double-click once, then quit & reopen Claude`,
       true,
     );
     await refreshBridgeStatus();
@@ -208,13 +248,14 @@ document.getElementById("autoConnect")!.addEventListener("click", () => {
 
 document.getElementById("copyClaudeConfig")!.addEventListener("click", () => {
   void (async () => {
+    await saveApiKeyIfTyped();
     const opts = await getConnectOpts();
     await copyText(
       buildClientMcpConfig(opts),
-      "Claude Desktop config copied — paste into claude_desktop_config.json",
+      "Claude Desktop config copied — paste into claude_desktop_config.json (Advanced)",
     );
     setAutoLine(
-      "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+      "Bridge armed — prefer Auto-connect script over paste-JSON",
       true,
     );
     await refreshBridgeStatus();
@@ -223,13 +264,14 @@ document.getElementById("copyClaudeConfig")!.addEventListener("click", () => {
 
 document.getElementById("copyCursorConfig")!.addEventListener("click", () => {
   void (async () => {
+    await saveApiKeyIfTyped();
     const opts = await getConnectOpts();
     await copyText(
       buildClientMcpConfig(opts),
       "Cursor MCP config copied — paste into .cursor/mcp.json or Settings → MCP",
     );
     setAutoLine(
-      "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+      "Bridge armed — prefer Auto-connect script over paste-JSON",
       true,
     );
     await refreshBridgeStatus();
@@ -238,6 +280,7 @@ document.getElementById("copyCursorConfig")!.addEventListener("click", () => {
 
 document.getElementById("dlMac")!.addEventListener("click", () => {
   void (async () => {
+    await saveApiKeyIfTyped();
     const opts = await getConnectOpts();
     downloadTextFile(
       "AskJev-Connect-Claude.command",
@@ -245,7 +288,7 @@ document.getElementById("dlMac")!.addEventListener("click", () => {
     );
     setStatus("Downloaded macOS helper — run once, then restart Claude");
     setAutoLine(
-      "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+      "Bridge armed — double-click Connect script, then quit & reopen Claude",
       true,
     );
     await refreshBridgeStatus();
@@ -254,14 +297,12 @@ document.getElementById("dlMac")!.addEventListener("click", () => {
 
 document.getElementById("dlWin")!.addEventListener("click", () => {
   void (async () => {
+    await saveApiKeyIfTyped();
     const opts = await getConnectOpts();
-    downloadTextFile(
-      "AskJev-Connect-Claude.bat",
-      buildClaudeWinBat(opts),
-    );
+    downloadTextFile("AskJev-Connect-Claude.bat", buildClaudeWinBat(opts));
     setStatus("Downloaded Windows helper — run once, then restart Claude");
     setAutoLine(
-      "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+      "Bridge armed — double-click Connect script, then quit & reopen Claude",
       true,
     );
     await refreshBridgeStatus();
@@ -270,14 +311,12 @@ document.getElementById("dlWin")!.addEventListener("click", () => {
 
 document.getElementById("dlLinux")!.addEventListener("click", () => {
   void (async () => {
+    await saveApiKeyIfTyped();
     const opts = await getConnectOpts();
-    downloadTextFile(
-      "AskJev-Connect-Claude.sh",
-      buildClaudeLinuxSh(opts),
-    );
+    downloadTextFile("AskJev-Connect-Claude.sh", buildClaudeLinuxSh(opts));
     setStatus("Downloaded Linux helper — run once, then restart Claude");
     setAutoLine(
-      "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+      "Bridge armed — double-click Connect script, then quit & reopen Claude",
       true,
     );
     await refreshBridgeStatus();
@@ -321,7 +360,6 @@ document.getElementById("revokeToken")!.addEventListener("click", () => {
   })();
 });
 
-
 document.getElementById("savePasteToken")!.addEventListener("click", () => {
   void (async () => {
     const token = (
@@ -343,7 +381,7 @@ document.getElementById("savePasteToken")!.addEventListener("click", () => {
     (document.getElementById("pasteToken") as HTMLInputElement).value = "";
     setStatus("token saved");
     setAutoLine(
-      "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+      "Bridge armed — double-click Connect script, then quit & reopen Claude",
       true,
     );
     await refreshBridgeStatus();

@@ -18,7 +18,7 @@
       </div>
       <div>
         <h1 class="m-0 text-[13px] font-semibold tracking-tight">AskJev</h1>
-        <div class="text-[11px] tabular-nums text-zinc-500">Settings · v1.7.0</div>
+        <div class="text-[11px] tabular-nums text-zinc-500">Settings · v1.7.1</div>
       </div>
       <div class="ml-auto max-w-xs text-right text-[11px] leading-snug text-zinc-500">
         On for every site. Allowlist only trusted hosts. Key → <code class="text-zinc-300">api.typesafe.ai</code> only.
@@ -28,8 +28,9 @@
     <div class="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-hidden md:grid-cols-2">
       <section class="aj-panel" aria-label="Guard settings">
         <h2 class="aj-panel-title">Guard</h2>
-        <label class="aj-label" for="apiKey">TypeSafe API key</label>
-        <input id="apiKey" class="aj-input" type="password" placeholder="tsk_..." autocomplete="off" spellcheck="false" />
+        <p class="mb-1 text-[11px] leading-snug text-zinc-500">
+          Irreversible-click protection. TypeSafe API key for Autopilot lives under <strong class="text-zinc-400">Connect</strong>.
+        </p>
 
         <div class="mt-1 grid grid-cols-2 gap-1.5">
           <div>
@@ -58,27 +59,36 @@
 
       <section class="aj-panel" aria-label="Connect Claude Cursor">
         <h2 class="aj-panel-title">Connect</h2>
-        <p class="mb-1 text-[11px] leading-snug text-zinc-400">
-          <strong class="text-zinc-50">Preferred:</strong> talk to Claude in plain language — it drives the browser via AskJev MCP.
-          Pairing token is only for legacy bridge / <code class="text-zinc-300">.mcpb</code>.
+        <label class="aj-label" for="apiKey">TypeSafe API key</label>
+        <input id="apiKey" class="aj-input" type="password" placeholder="TypeSafe API key" autocomplete="off" spellcheck="false" />
+        <p class="mb-1 mt-0.5 text-2xs leading-snug text-zinc-500">
+          Required for multi-step Autopilot (Claude drives the browser via CDP). Saved on Auto-connect.
         </p>
         <ol class="mb-1 list-decimal pl-4 text-2xs leading-snug text-zinc-500">
-          <li><strong class="text-zinc-400">Auto-connect</strong> → token + bridge armed</li>
-          <li>Install <code class="text-zinc-400">.mcpb</code> or copy config</li>
-          <li>Restart Claude / Cursor → chat naturally</li>
+          <li>Paste TypeSafe key</li>
+          <li><strong class="text-zinc-400">Auto-connect</strong> (downloads Connect script)</li>
+          <li>Double-click the downloaded script once</li>
+          <li>Restart Claude → talk normally</li>
         </ol>
         <div class="mt-1.5 flex flex-wrap gap-1.5">
           <button type="button" class="aj-btn-primary" id="autoConnect">Auto-connect</button>
-          <button type="button" class="aj-btn" id="copyClaudeConfig">Claude config</button>
-          <button type="button" class="aj-btn" id="copyCursorConfig">Cursor config</button>
-        </div>
-        <div class="mt-1.5 flex flex-wrap gap-1.5">
-          <button type="button" class="aj-btn" id="dlMac">macOS .command</button>
-          <button type="button" class="aj-btn" id="dlWin">Windows .bat</button>
-          <button type="button" class="aj-btn" id="dlLinux">Linux .sh</button>
         </div>
         <div class="status-pill" id="bridgeStatus">bridge off</div>
         <p class="mt-1 text-2xs text-zinc-500" id="autoStatusLine">Bridge off — click Auto-connect to arm.</p>
+
+        <details class="mt-1.5 border-t border-zinc-800 pt-1">
+          <summary class="cursor-pointer select-none text-[11px] text-zinc-400 hover:text-zinc-50">More ways to connect</summary>
+          <p class="mt-1 text-2xs text-zinc-500">Backup: copy JSON or download a platform script manually.</p>
+          <div class="mt-1.5 flex flex-wrap gap-1.5">
+            <button type="button" class="aj-btn" id="copyClaudeConfig">Claude config</button>
+            <button type="button" class="aj-btn" id="copyCursorConfig">Cursor config</button>
+          </div>
+          <div class="mt-1.5 flex flex-wrap gap-1.5">
+            <button type="button" class="aj-btn" id="dlMac">macOS .command</button>
+            <button type="button" class="aj-btn" id="dlWin">Windows .bat</button>
+            <button type="button" class="aj-btn" id="dlLinux">Linux .sh</button>
+          </div>
+        </details>
 
         <details class="mt-1.5 max-h-[180px] overflow-auto border-t border-zinc-800 pt-1">
           <summary class="cursor-pointer select-none text-[11px] text-zinc-400 hover:text-zinc-50">Advanced bridge</summary>
