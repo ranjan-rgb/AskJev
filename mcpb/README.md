@@ -8,12 +8,14 @@ One-click install for **Claude Desktop** — no daily terminal, no hand-edited J
 
 | Path | Role |
 |------|------|
-| `manifest.json` | MCPB identity, `user_config` (token + port), launch `mcp_config` |
+| `manifest.json` | MCPB identity, `user_config` (TypeSafe API key + optional browser/steps), launch `mcp_config` |
 | `server/` | Built `askjev-mcp` JS (from `mcp/dist`) |
 | `node_modules/` | Production deps (`@modelcontextprotocol/sdk`, `ws`, `zod`) |
 | `icon.png` | Extension icon |
 
-Claude Desktop runs `node ${__dirname}/server/index.js` with `ASKJEV_TOKEN` / `ASKJEV_PORT` from the install UI.
+Claude Desktop runs `node ${__dirname}/server/index.js` with `ASKJEV_MODE=cdp` and the
+TypeSafe API key from the install UI. No pairing token, no port: the default CDP
+path drives the browser directly and never binds a WebSocket.
 
 ## Build / pack (maintainers)
 
@@ -36,8 +38,11 @@ Do **not** commit `mcpb/node_modules/` or a filled `mcpb/server/` — they are p
 
 ## Install (users)
 
-1. AskJev Chrome Options → **Auto-connect**
-2. Claude Desktop → Settings → Extensions → Advanced → **Install Extension…**
+1. Double-click `askjev-<version>.mcpb`
+2. Paste your TypeSafe API key in Claude's install dialog → **Install**
+
+That is the whole setup. The browser extension is optional and only adds Guard
+to your own browsing.
 3. Pick `askjev-<version>.mcpb` from the [GitHub release](https://github.com/ranjan2829/AskJev/releases)
 4. Paste the pairing token; confirm port `17373`
 5. Keep the Chrome extension loaded with the bridge armed

@@ -8,16 +8,30 @@ Built with [TypeSafe System One](https://typesafe.ai) — page decisions use Jev
 
 ---
 
-## Setup (phone-simple)
+## Setup
 
-1. **Load the extension** — Brave or Chrome → Extensions → **Load unpacked** → select `extension/` (or install from the store when listed).
-2. **Options → paste your TypeSafe API key → Auto-connect** — downloads `AskJev-Connect-Claude.command` (mac) / `.bat` (Windows) / `.sh` (Linux).
-3. **Double-click the Connect script once** → **Quit & reopen Claude**.
-4. **Chat:** `open example.com and click More information`
+1. **Download `askjev-1.8.0.mcpb`** from [Releases](https://github.com/ranjan2829/AskJev/releases) and **double-click it**. Claude Desktop opens its install dialog.
+2. **Paste your TypeSafe API key** in that dialog → **Install**.
+3. **Chat:** `open example.com and click More information`
 
-That’s it. Claude launches `askjev-mcp` for you. AskJev opens Brave (falling back to Chrome, Chromium, then Edge) and runs Autopilot. Brave is preferred on macOS, Windows, and Linux alike. Your API key goes only to `api.typesafe.ai`.
+No terminal. No scripts. No ports to paste. Claude stores the key encrypted and
+starts AskJev for you; AskJev opens Brave (or Chrome) itself when it is needed.
 
-**Without a TypeSafe API key**, multi-step goals fail loudly with `missing_api_key` and instructions — AskJev never silently navigates and scrolls instead. Single actions (`askjev_navigate`, `askjev_click`, `askjev_read_page`, …) still work without a key.
+Get a key: [typesafe.ai](https://typesafe.ai)
+
+### Optional — Guard on your own browsing
+
+The steps above are all Claude needs. The browser extension is a separate,
+optional add-on that applies the same irreversible-click Guard to pages **you**
+click yourself: Brave or Chrome → Extensions → **Load unpacked** → `extension/`,
+then Options → paste the same key. Claude does not need it.
+
+AskJev opens Brave, falling back to Chrome, Chromium, then Edge — Brave first on
+macOS, Windows and Linux alike. Your API key goes only to `api.typesafe.ai`.
+
+**Without a key**, multi-step goals fail loudly with `missing_api_key` rather
+than silently navigating and scrolling. Single actions (`askjev_navigate`,
+`askjev_click`, `askjev_read_page`, …) still work without one.
 
 Get a key: [typesafe.ai](https://typesafe.ai) · Docs: [docs.typesafe.ai](https://docs.typesafe.ai/introduction)
 
@@ -71,14 +85,25 @@ You → Claude (MCP client) → askjev-mcp (CDP) → Brave/Chrome
 
 ## Advanced
 
-Prefer Auto-connect. These are fallbacks only:
+Prefer the `.mcpb`. These are fallbacks only:
 
-- **More ways to connect** in Options — copy Claude/Cursor JSON, or download mac/win/linux scripts manually.
-- **`.mcpb`** Desktop Extension — [docs/MCPB.md](docs/MCPB.md) (legacy pairing-token path).
-- **Protocol / security** — [docs/AGENT-BRIDGE.md](docs/AGENT-BRIDGE.md).
+- **Cursor, or Claude Desktop by hand** — Options → copy the MCP JSON, or
+  download a Connect script. On macOS a downloaded `.command` is quarantined by
+  Gatekeeper **and** arrives without an execute bit, so double-clicking it fails;
+  run it as `bash ~/Downloads/AskJev-Connect-Claude.command` instead. The `.mcpb`
+  exists to avoid exactly this.
+- **Extension-only (no Claude)** — Options → paste key → use the side panel.
+- **Legacy WebSocket bridge** — [docs/AGENT-BRIDGE.md](docs/AGENT-BRIDGE.md).
+  Only opens with `ASKJEV_MODE=bridge`; the default `cdp` path never binds a port.
 - **Dev build:** `npm install && npm run build` · `npm test` · `npm run pack:chrome` · `npm run pack:mcpb`
 
-Auto-connect and the copy-JSON buttons both write `npx -y askjev-mcp` (public npm). A GitHub Release tarball URL exists in `src/connect-helpers.ts` (`ASKJEV_MCP_TGZ`) as a no-registry fallback, but no Options button selects it today — swap the `args` by hand if you need it.
+The JSON and scripts write `npx -y askjev-mcp` (public npm). Note that Claude
+Desktop starts one MCP process per session pool (Chat, Cowork, Code), and
+concurrent `npx` invocations can collide on the shared npx cache
+(`ENOTEMPTY` on `~/.npm/_npx/<hash>`); the `.mcpb` ships its own `node_modules`
+and does not use `npx` at runtime. A Release tarball URL exists in
+`src/connect-helpers.ts` (`ASKJEV_MCP_TGZ`) as a no-registry fallback, but no
+Options button selects it today — swap the `args` by hand if you need it.
 
 ---
 

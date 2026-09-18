@@ -3,8 +3,8 @@
   "name": "askjev-mcp",
   "display_name": "AskJev",
   "version": "1.8.0",
-  "description": "Bridge Claude Desktop to the AskJev browser extension — Autopilot + Guard over localhost.",
-  "long_description": "AskJev connects Claude Desktop to your Chrome/Brave AskJev extension so Claude can drive the active tab with the same irreversible-click Guard.\n\n1. Install this extension in Claude Desktop.\n2. Paste the pairing token from AskJev Options → Advanced.\n3. Keep the AskJev Chrome extension open with Agent Bridge armed.\n\nNo daily terminal. Traffic stays on 127.0.0.1.",
+  "description": "Let Claude drive your browser in plain English. TypeSafe Jev decides each click; irreversible actions are frozen.",
+  "long_description": "AskJev lets Claude open sites, click, type and fill forms for you — you just talk.\n\nSetup is this screen:\n\n1. Paste your TypeSafe API key below (get one at https://typesafe.ai).\n2. Click Install.\n\nThat is the whole setup. No terminal, no scripts, no ports to paste. AskJev opens Brave (or Chrome) itself when Claude needs it.\n\nEvery on-page decision comes from TypeSafe Jev System One — not from Claude guessing. Anything that looks irreversible (pay, delete, send, publish, deploy) is stopped and handed back to you.\n\nOptional: the AskJev browser extension adds the same Guard to your OWN browsing. It is not needed for Claude to drive the browser.",
   "author": {
     "name": "Ranjan Shitole",
     "email": "ranjan.shitole3129@gmail.com",
@@ -15,7 +15,7 @@
     "url": "https://github.com/ranjan2829/AskJev.git"
   },
   "homepage": "https://github.com/ranjan2829/AskJev",
-  "documentation": "https://github.com/ranjan2829/AskJev/blob/main/docs/AGENT-BRIDGE.md",
+  "documentation": "https://github.com/ranjan2829/AskJev/blob/main/README.md",
   "support": "https://github.com/ranjan2829/AskJev/issues",
   "license": "MIT",
   "keywords": [
@@ -36,53 +36,95 @@
         "${__dirname}/server/index.js"
       ],
       "env": {
-        "ASKJEV_TOKEN": "${user_config.askjev_token}",
-        "ASKJEV_PORT": "${user_config.askjev_port}"
+        "ASKJEV_MODE": "cdp",
+        "ASKJEV_API_KEY": "${user_config.typesafe_api_key}",
+        "TYPESAFE_API_KEY": "${user_config.typesafe_api_key}",
+        "ASKJEV_BROWSER_BIN": "${user_config.browser_bin}",
+        "ASKJEV_MAX_STEPS": "${user_config.max_steps}"
       }
     }
   },
   "tools": [
     {
+      "name": "askjev_do",
+      "description": "Do what the user asked in the browser, end to end, in their own words"
+    },
+    {
       "name": "askjev_start_goal",
-      "description": "Start Autopilot on the active tab with a natural-language goal"
+      "description": "Alias of askjev_do"
     },
     {
       "name": "askjev_stop",
-      "description": "Stop the running Autopilot loop"
+      "description": "Stop a running AskJev browser task"
     },
     {
       "name": "askjev_status",
-      "description": "Bridge + Autopilot status"
+      "description": "Whether AskJev can drive the browser right now"
+    },
+    {
+      "name": "askjev_navigate",
+      "description": "Open a URL"
     },
     {
       "name": "askjev_snapshot",
-      "description": "Snapshot interactive elements on the active tab"
+      "description": "Snapshot interactive elements on the current page"
     },
     {
       "name": "askjev_act",
-      "description": "Execute one DOM action (rate-limited; Guard applies)"
+      "description": "One DOM action: CLICK, TYPE_TEXT, SELECT, SCROLL_DOWN, SCROLL_UP, WAIT, PRESS"
+    },
+    {
+      "name": "askjev_click",
+      "description": "Click a visible button or link by its label"
+    },
+    {
+      "name": "askjev_type",
+      "description": "Type into the focused field"
+    },
+    {
+      "name": "askjev_back",
+      "description": "Browser back"
+    },
+    {
+      "name": "askjev_forward",
+      "description": "Browser forward"
+    },
+    {
+      "name": "askjev_read_page",
+      "description": "Read the visible text of the current page"
+    },
+    {
+      "name": "askjev_screenshot",
+      "description": "Screenshot the current page"
     },
     {
       "name": "askjev_list_tabs",
       "description": "List open browser tabs"
     }
   ],
-  "tools_generated": true,
+  "tools_generated": false,
   "user_config": {
-    "askjev_token": {
+    "typesafe_api_key": {
       "type": "string",
-      "title": "AskJev pairing token",
-      "description": "From AskJev Options → Advanced → Copy token (after Auto-connect).",
+      "title": "TypeSafe API key",
+      "description": "Get one at https://typesafe.ai. Jev uses it to decide each step. Stored by Claude, sent only to api.typesafe.ai.",
       "sensitive": true,
       "required": true
     },
-    "askjev_port": {
+    "browser_bin": {
+      "type": "string",
+      "title": "Browser (optional)",
+      "description": "Leave blank to use Brave, then Chrome, whichever is installed. Set a full path only to force a specific browser.",
+      "required": false,
+      "default": ""
+    },
+    "max_steps": {
       "type": "number",
-      "title": "Bridge port",
-      "description": "Must match AskJev Options → Bridge port.",
-      "default": 17373,
-      "min": 1024,
-      "max": 65535,
+      "title": "Maximum steps per task",
+      "description": "How many actions AskJev may take for one request before stopping.",
+      "default": 25,
+      "min": 1,
+      "max": 100,
       "required": false
     }
   },
