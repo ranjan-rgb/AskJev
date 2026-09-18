@@ -65,15 +65,19 @@ execSync("npm run build:extension", { cwd: root, stdio: "inherit" });
 const man = JSON.parse(readFileSync(join(root, "extension/manifest.json"), "utf8"));
 assert.equal(man.manifest_version, 3);
 assert.equal(man.version, version);
+assert.ok(Array.isArray(man.permissions) && man.permissions.includes("offscreen"), "manifest needs offscreen permission");
+ok("offscreen permission");
 for (const f of [
   "background.js",
   "content.js",
   "popup.js",
   "options.js",
   "sidepanel.js",
+  "offscreen.js",
   "popup.html",
   "options.html",
   "sidepanel.html",
+  "offscreen.html",
 ]) {
   const p = join(root, "extension", f);
   assert.ok(existsSync(p), `missing ${f}`);

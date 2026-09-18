@@ -22,6 +22,8 @@ type SettingsCache = {
   hasKey: boolean;
   sensitivity?: string;
   gateFormSubmits?: boolean;
+  requireConfirmOnAsk?: boolean;
+  showOverlayOnProceed?: boolean;
 };
 
 declare global {
@@ -104,7 +106,7 @@ if (!window.__askjevLoaded) {
 
     // Never gate plain in-page / site navigation links on weak words.
     if (isPlainNavLink) {
-      const strong = /(delete|pay|checkout|purchase|withdraw|deploy|revoke|wipe|terminate|close account)/i;
+      const strong = /\b(delete|pay|checkout|purchase|withdraw|deploy|revoke|wipe|terminate|close account)\b/i;
       return strong.test(label) || strong.test(href);
     }
 
@@ -123,11 +125,11 @@ if (!window.__askjevLoaded) {
         (clickable.type === "submit" || clickable.type === "button"));
     if (isButtonLike) {
       const btnRe = new RegExp(
-        "\b(" +
+        "\\b(" +
           [...BUTTON_ONLY_KEYWORDS]
-            .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\$&"))
+            .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
             .join("|") +
-          ")\b",
+          ")\\b",
         "i",
       );
       if (btnRe.test(label)) return true;
@@ -274,7 +276,7 @@ if (!window.__askjevLoaded) {
     bypass?: boolean;
     error?: string;
     result?: SystemOneResult;
-    settings?: { showOverlayOnProceed?: boolean };
+    settings?: { showOverlayOnProceed?: boolean; requireConfirmOnAsk?: boolean };
   }> {
     const sn = pageSnippet();
     const state = [
@@ -291,7 +293,7 @@ if (!window.__askjevLoaded) {
         bypass?: boolean;
         error?: string;
         result?: SystemOneResult;
-        settings?: { showOverlayOnProceed?: boolean };
+        settings?: { showOverlayOnProceed?: boolean; requireConfirmOnAsk?: boolean };
       }) => {
         if (settled) return;
         settled = true;
@@ -424,6 +426,17 @@ if (!window.__askjevLoaded) {
             },
             onBlock: () => {},
           });
+          return;
+        }
+
+        // Quiet default: soft "ask" with low irreversible does not freeze the page
+        const wantConfirm =
+          resp.settings?.requireConfirmOnAsk === true ||
+          settingsCache.requireConfirmOnAsk === true;
+        if (!wantConfirm && irr < 0.65) {
+          stat("proceeded");
+          hideOverlay();
+          fireClick(clickable);
           return;
         }
 

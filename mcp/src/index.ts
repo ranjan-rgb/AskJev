@@ -3,8 +3,10 @@
  * askjev-mcp — MCP stdio server + localhost WebSocket bridge for AskJev.
  *
  * Env:
- *   ASKJEV_TOKEN  (required) pairing token from extension Options
- *   ASKJEV_PORT   (optional) default 17373
+ *   ASKJEV_TOKEN        (required) pairing token from extension Options
+ *   ASKJEV_PORT         (optional) default 17373
+ *   ASKJEV_BRIDGE_ONLY  (optional) if 1/true: keep WebSocket forever, skip stdio MCP
+ *                       (LaunchAgent owner). Claude always attaches as peer.
  *
  * Claude Desktop may spawn this process twice (Chat + Cowork/Code). The first
  * binds 127.0.0.1:PORT; the second attaches as a controller peer (see BridgeAttach).
@@ -121,6 +123,14 @@ async function openBridge(
   }
 }
 
+function isBridgeOnly(): boolean {
+  return ["1", "true", "yes"].includes(
+    String(process.env.ASKJEV_BRIDGE_ONLY || "")
+      .trim()
+      .toLowerCase(),
+  );
+}
+
 async function main(): Promise<void> {
   const token = requireToken();
   const port =
@@ -129,9 +139,30 @@ async function main(): Promise<void> {
 
   const bridge: BridgeLike = await openBridge(token, port);
 
+  const shutdown = async () => {
+    try {
+      await bridge.close();
+    } catch {
+      /* ignore */
+    }
+    process.exit(0);
+  };
+  process.on("SIGINT", () => void shutdown());
+  process.on("SIGTERM", () => void shutdown());
+
+  if (isBridgeOnly()) {
+    console.error(
+      "AskJev MCP: ASKJEV_BRIDGE_ONLY=1 — WebSocket bridge owner (no stdio). Claude should attach as peer.",
+    );
+    await new Promise<void>(() => {
+      /* never resolves — LaunchAgent keeps WS forever */
+    });
+    return;
+  }
+
   const server = new McpServer({
     name: "askjev-mcp",
-    version: "1.5.6",
+    version: "1.5.7",
   });
 
   // ---- Mode A: goal-driven autopilot ----
@@ -196,8 +227,25 @@ async function main(): Promise<void> {
             note: unpairedStatusNote(local),
           });
         }
-        const extension = await bridge.call("status", {});
-        return toolOk({ ...local, extension, modeNote });
+        try {
+          const extension = await bridge.call("status", {});
+          return toolOk({ ...local, extension, modeNote });
+        } catch (rpcErr) {
+          // Paired but status RPC failed (transient WS blip) — never look fully offline
+          const message =
+            rpcErr instanceof Error ? rpcErr.message : String(rpcErr);
+          const code =
+            rpcErr instanceof BridgeError ? rpcErr.code : "internal";
+          return toolOk({
+            ...local,
+            paired: true,
+            extension: null,
+            modeNote,
+            warning:
+              "paired but extension status RPC failed — bridge may be reconnecting; retry askjev_list_tabs / askjev_status",
+            rpcError: { code, message },
+          });
+        }
       } catch (e) {
         return toolError(e);
       }
@@ -281,17 +329,6 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("AskJev MCP: stdio connected — Claude/Cursor owns this process");
-
-  const shutdown = async () => {
-    try {
-      await bridge.close();
-    } catch {
-      /* ignore */
-    }
-    process.exit(0);
-  };
-  process.on("SIGINT", () => void shutdown());
-  process.on("SIGTERM", () => void shutdown());
 }
 
 main().catch((err) => {

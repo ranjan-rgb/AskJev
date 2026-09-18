@@ -2,7 +2,6 @@ import { DEFAULTS, type AskJevSettings } from "./defaults.js";
 import { callJev } from "./jev.js";
 import { decideNextStep, extractQuotedText } from "./autopilot-jev.js";
 import {
-  AgentBridgeClient,
   bridgeError,
   guardAct,
   type BridgeStatusSnapshot,
@@ -23,6 +22,29 @@ async function bumpStat(key: keyof AskJevSettings["stats"]): Promise<void> {
   const stats = { ...s.stats, [key]: (s.stats?.[key] || 0) + 1 };
   await chrome.storage.sync.set({ stats });
 }
+
+/** Last bridge status reported by the offscreen WebSocket host. */
+let lastBridgeSnap: BridgeStatusSnapshot = {
+  state: "disabled",
+  detail: "bridge off",
+  reconnectAttempt: 0,
+};
+
+function broadcast(msg: object): void {
+  void chrome.runtime.sendMessage(msg).catch(() => undefined);
+}
+
+/** Thin facade: WS lives in offscreen; SW only forwards emit / reads cached status. */
+const bridgeClient = {
+  getSnapshot(): BridgeStatusSnapshot {
+    return lastBridgeSnap;
+  },
+  emit(event: string, data?: unknown): void {
+    void chrome.runtime
+      .sendMessage({ type: "askjev.offscreen.emit", event, data })
+      .catch(() => undefined);
+  },
+};
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === "askjev.decide") {
@@ -91,6 +113,35 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
+  if (msg?.type === "askjev.offscreen.status") {
+    lastBridgeSnap = msg.bridge as BridgeStatusSnapshot;
+    broadcast({ type: "askjev.bridge.status", bridge: lastBridgeSnap });
+    sendResponse({ ok: true });
+    return true;
+  }
+
+  if (msg?.type === "askjev.offscreen.rpc") {
+    void (async () => {
+      try {
+        const result = await handleBridgeRpc(
+          String(msg.method || ""),
+          (msg.params || {}) as Record<string, unknown>,
+        );
+        sendResponse({ ok: true, result });
+      } catch (e) {
+        const err = e as Error & { code?: string };
+        sendResponse({
+          ok: false,
+          error: {
+            code: err.code || "internal",
+            message: err.message || String(e),
+          },
+        });
+      }
+    })();
+    return true;
+  }
+
   return undefined;
 });
 
@@ -108,6 +159,62 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
+/** ---- Offscreen bridge host ---- */
+const OFFSCREEN_URL = "offscreen.html";
+
+async function hasOffscreenDocument(): Promise<boolean> {
+  try {
+    if (!chrome.runtime.getContexts) return false;
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+      documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)],
+    });
+    return contexts.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureOffscreen(): Promise<void> {
+  if (await hasOffscreenDocument()) return;
+  await chrome.offscreen.createDocument({
+    url: OFFSCREEN_URL,
+    reasons: [chrome.offscreen.Reason.BLOBS],
+    justification:
+      "Keep the AskJev MCP agent-bridge WebSocket alive across service-worker idle so Claude/Cursor RPCs (list_tabs, status, act) do not disconnect mid-call.",
+  });
+}
+
+async function closeOffscreen(): Promise<void> {
+  try {
+    if (await hasOffscreenDocument()) {
+      await chrome.offscreen.closeDocument();
+    }
+  } catch {
+    /* ignore */
+  }
+  lastBridgeSnap = {
+    state: "disabled",
+    detail: "bridge off",
+    reconnectAttempt: 0,
+  };
+}
+
+async function syncBridge(): Promise<void> {
+  const settings = await getSettings();
+  if (!settings.bridgeEnabled || !settings.bridgeToken) {
+    await closeOffscreen();
+    broadcast({ type: "askjev.bridge.status", bridge: lastBridgeSnap });
+    return;
+  }
+  await ensureOffscreen();
+  try {
+    await chrome.runtime.sendMessage({ type: "askjev.offscreen.sync" });
+  } catch {
+    /* offscreen may still be booting — alarm will retry */
+  }
+}
+
 /** ---- Autopilot ---- */
 let autopilotRunning = false;
 let lastAutopilotStatus = "idle";
@@ -115,10 +222,6 @@ let lastAutopilotStatus = "idle";
 async function getActiveTabId(): Promise<number | undefined> {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   return tabs[0]?.id;
-}
-
-function broadcast(msg: object): void {
-  void chrome.runtime.sendMessage(msg).catch(() => undefined);
 }
 
 function setAutopilotStatus(status: string): void {
@@ -253,7 +356,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return undefined;
 });
 
-/** ---- Agent bridge RPC handlers ---- */
+/** ---- Agent bridge RPC handlers (run in SW — chrome.tabs / storage) ---- */
 async function handleBridgeRpc(
   method: string,
   params: Record<string, unknown>,
@@ -367,17 +470,6 @@ async function handleBridgeRpc(
   throw bridgeError("invalid_params", `unknown method ${method}`);
 }
 
-function onBridgeStatus(snap: BridgeStatusSnapshot): void {
-  broadcast({ type: "askjev.bridge.status", bridge: snap });
-}
-
-const bridgeClient = new AgentBridgeClient(handleBridgeRpc, onBridgeStatus);
-
-async function syncBridge(): Promise<void> {
-  const settings = await getSettings();
-  bridgeClient.sync(settings);
-}
-
 void syncBridge();
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "sync") return;
@@ -390,7 +482,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
-/** Keep service worker alive while bridge is enabled (alarms). */
+/** Keep offscreen + bridge armed while enabled (alarms wake the SW). */
 chrome.alarms.create("askjev.bridge.keepalive", { periodInMinutes: 1 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "askjev.bridge.keepalive") {

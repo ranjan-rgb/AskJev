@@ -1,5 +1,5 @@
 import * as esbuild from "esbuild";
-import { mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const outDir = "extension";
@@ -13,6 +13,7 @@ await esbuild.build({
     popup: "src/popup.ts",
     options: "src/options.ts",
     sidepanel: "src/sidepanel.ts",
+    offscreen: "src/offscreen.ts",
   },
   bundle: true,
   outdir: outDir,
@@ -23,13 +24,39 @@ await esbuild.build({
   logLevel: "info",
 });
 
+if (!existsSync(join(outDir, "offscreen.html"))) {
+  writeFileSync(
+    join(outDir, "offscreen.html"),
+    `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AskJev bridge</title>
+</head>
+<body>
+  <script type="module" src="offscreen.js"></script>
+</body>
+</html>
+`,
+  );
+}
+
+const version = JSON.parse(readFileSync("package.json", "utf8")).version || "0.0.0";
+
 const manifest = {
   manifest_version: 3,
   name: "AskJev",
-  version: "1.5.6",
+  version,
   description:
     "Jev autopilot for any website — plus a guard on irreversible clicks. Connect Claude/Cursor via MCP agent bridge.",
-  permissions: ["storage", "alarms", "sidePanel", "activeTab", "tabs"],
+  permissions: [
+    "storage",
+    "alarms",
+    "sidePanel",
+    "activeTab",
+    "tabs",
+    "offscreen",
+  ],
   host_permissions: [
     "https://api.typesafe.ai/*",
     "http://*/*",
@@ -70,4 +97,4 @@ writeFileSync(join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2) +
 if (!existsSync(join(outDir, "sidepanel.html"))) {
   console.warn("missing sidepanel.html");
 }
-console.log("build ok");
+console.log("build ok", version);
