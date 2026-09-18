@@ -198,3 +198,7 @@ npm run build          # extension + mcp
 npm run typecheck
 ASKJEV_TOKEN=… node mcp/bin/askjev-mcp.js
 ```
+
+## Desktop Extension packing
+
+Maintainer notes: [MCPB.md](./MCPB.md).
