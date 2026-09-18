@@ -4,6 +4,10 @@ import {
   SNAPSHOT_ELEMENT_LIMIT,
   browserCandidates,
   cdpPort,
+  chooseProfile,
+  isProfileLocked,
+  ownProfileDir,
+  realProfileDir,
 } from "../dist/cdp-browser.js";
 
 describe("browserCandidates", () => {
@@ -73,5 +77,47 @@ describe("cdpPort", () => {
     assert.equal(cdpPort("http://127.0.0.1"), 9222);
     assert.equal(cdpPort("not a url"), 9222);
     assert.equal(cdpPort(""), 9222);
+  });
+});
+
+describe("profile selection", () => {
+  const brave = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
+  const chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+
+  it("maps the binary to that browser's real profile per platform", () => {
+    assert.match(realProfileDir(brave, "darwin", {}), /BraveSoftware\/Brave-Browser$/);
+    assert.match(realProfileDir(chrome, "darwin", {}), /Google\/Chrome$/);
+    assert.match(
+      realProfileDir(brave, "win32", { LOCALAPPDATA: "C:\\U\\AppData\\Local" }),
+      /BraveSoftware.Brave-Browser.User Data$/,
+    );
+    assert.match(realProfileDir(brave, "linux", {}), /\.config\/BraveSoftware/);
+  });
+
+  it("returns null on Windows with no LOCALAPPDATA", () => {
+    assert.equal(realProfileDir(brave, "win32", {}), null);
+  });
+
+  it("honours an explicit ASKJEV_PROFILE_DIR", () => {
+    const c = chooseProfile(brave, { ASKJEV_PROFILE_DIR: "/tmp/p" }, "darwin");
+    assert.equal(c.dir, "/tmp/p");
+    assert.equal(c.isReal, false);
+  });
+
+  it("opts out to a separate profile with ASKJEV_OWN_PROFILE", () => {
+    const c = chooseProfile(brave, { ASKJEV_OWN_PROFILE: "1" }, "darwin");
+    assert.equal(c.dir, ownProfileDir());
+    assert.equal(c.isReal, false);
+  });
+
+  it("falls back to its own profile when the real one does not exist", () => {
+    // linux paths do not exist on the CI/mac box running this
+    const c = chooseProfile(brave, {}, "linux");
+    assert.equal(c.isReal, false);
+    assert.equal(c.dir, ownProfileDir());
+  });
+
+  it("reports a profile as unlocked when there is no SingletonLock", () => {
+    assert.equal(isProfileLocked("/tmp/definitely-not-a-profile-dir"), false);
   });
 });

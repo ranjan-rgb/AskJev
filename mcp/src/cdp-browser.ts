@@ -3,8 +3,14 @@
  * Users never touch CDP ports or shell scripts — Claude calls askjev_do,
  * and we attach to an existing debug browser OR launch Chrome/Brave ourselves.
  */
-import { existsSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import {
+  existsSync,
+  lstatSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   chromium,
@@ -29,6 +35,103 @@ export const SNAPSHOT_ELEMENT_LIMIT = 80;
 
 function cdpUrl(): string {
   return (process.env.ASKJEV_CDP_URL || "http://127.0.0.1:9222").trim();
+}
+
+/** Separate profile, used when the user opts out of their own. */
+export function ownProfileDir(): string {
+  return join(homedir(), ".askjev", "browser-profile");
+}
+
+/**
+ * The user's real browser profile — where their logins already live.
+ *
+ * Returns the User Data directory (the parent of Default), which is what
+ * Chromium's --user-data-dir expects.
+ */
+export function realProfileDir(
+  browserBin: string | null,
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  const brave = !browserBin || /brave/i.test(browserBin);
+  const home = homedir();
+  if (platform === "darwin") {
+    return brave
+      ? join(home, "Library/Application Support/BraveSoftware/Brave-Browser")
+      : join(home, "Library/Application Support/Google/Chrome");
+  }
+  if (platform === "win32") {
+    const local = env.LOCALAPPDATA;
+    if (!local) return null;
+    return brave
+      ? join(local, "BraveSoftware", "Brave-Browser", "User Data")
+      : join(local, "Google", "Chrome", "User Data");
+  }
+  return brave
+    ? join(home, ".config", "BraveSoftware", "Brave-Browser")
+    : join(home, ".config", "google-chrome");
+}
+
+/**
+ * True while the browser owning this profile is running. Chromium keeps a
+ * SingletonLock symlink there; a second process cannot use the directory, and
+ * forcing it risks corrupting their history and cookies.
+ */
+export function isProfileLocked(dir: string): boolean {
+  try {
+    return lstatSync(join(dir, "SingletonLock")).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+/** Opt out of the user's own profile with ASKJEV_OWN_PROFILE=1. */
+function wantsSeparateProfile(env: NodeJS.ProcessEnv = process.env): boolean {
+  return ["1", "true", "yes"].includes(
+    String(env.ASKJEV_OWN_PROFILE || "").trim().toLowerCase(),
+  );
+}
+
+export type ProfileChoice = {
+  dir: string;
+  /** True when this is the user's real profile with their existing logins. */
+  isReal: boolean;
+};
+
+/**
+ * Pick the profile to drive.
+ *
+ * Default is the user's OWN browser profile, because the whole point is that
+ * "open x.com and check my mentions" should find them logged in. A throwaway
+ * profile silently lands on a sign-in wall instead, which reads as AskJev being
+ * broken.
+ *
+ * If their browser is running it holds the profile lock, and we refuse rather
+ * than quietly switching to an empty profile — being logged out for no stated
+ * reason is exactly the confusing failure this is meant to remove.
+ */
+export function chooseProfile(
+  browserBin: string | null,
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): ProfileChoice {
+  const custom = (env.ASKJEV_PROFILE_DIR || "").trim();
+  if (custom) return { dir: custom, isReal: false };
+  if (wantsSeparateProfile(env)) return { dir: ownProfileDir(), isReal: false };
+
+  const real = realProfileDir(browserBin, platform, env);
+  if (real && existsSync(real)) {
+    if (isProfileLocked(real)) {
+      throw new Error(
+        "AskJev wants to use your own browser profile so you stay signed in, " +
+          "but your browser is open and holding it. Quit Brave/Chrome completely " +
+          "(Cmd+Q), then ask again — AskJev will reopen it for you. " +
+          "To use a separate signed-out profile instead, set ASKJEV_OWN_PROFILE=1.",
+      );
+    }
+    return { dir: real, isReal: true };
+  }
+  return { dir: ownProfileDir(), isReal: false };
 }
 
 /** Debug port to launch on, so other AskJev processes can attach to us. */
@@ -196,9 +299,18 @@ export async function ensureBrowser(): Promise<Browser> {
   }
 
   try {
-    browser = await chromium.launch({
+    // Persistent profile, not the throwaway one chromium.launch() would pick.
+    // A temp profile means every run starts logged out of everything, so a goal
+    // like "open x.com and check my mentions" lands on a sign-in wall even
+    // though the user is logged in elsewhere. With a durable directory they log
+    // in once per site and it sticks.
+    //
+    // Prefer the user's OWN profile so their existing logins are there.
+    const profile = chooseProfile(executablePath);
+    ownContext = await chromium.launchPersistentContext(profile.dir, {
       headless: false,
       executablePath,
+      viewport: null,
       args: [
         // Expose the port so sibling askjev-mcp processes attach here rather
         // than launching their own window.
@@ -209,8 +321,16 @@ export async function ensureBrowser(): Promise<Browser> {
       ],
     });
     launchedByMcp = true;
-    ownContext = await browser.newContext();
-    await ownContext.newPage();
+    // A persistent context restores its previous tabs; only open one if empty.
+    if (ownContext.pages().length === 0) await ownContext.newPage();
+    // browser() is null for persistent contexts in Playwright, so callers that
+    // need a Browser attach over the port we just opened.
+    browser = ownContext.browser() ?? (await tryConnect(5_000));
+    if (!browser) {
+      throw new Error(
+        "AskJev opened a browser but could not control it. Retry, or set ASKJEV_CDP_URL to a free port.",
+      );
+    }
     return browser;
   } finally {
     releaseLaunchLock(port);
