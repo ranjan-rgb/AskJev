@@ -114,7 +114,7 @@ async function loadOptions(): Promise<void> {
   (document.getElementById("enabled") as HTMLInputElement).checked =
     s.enabled !== false;
   (document.getElementById("confirmAsk") as HTMLInputElement).checked =
-    s.requireConfirmOnAsk !== false;
+    s.requireConfirmOnAsk === true;
   (document.getElementById("gateForms") as HTMLInputElement).checked =
     s.gateFormSubmits === true;
   (document.getElementById("bridgeEnabled") as HTMLInputElement).checked =

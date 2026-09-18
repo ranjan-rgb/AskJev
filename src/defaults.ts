@@ -32,7 +32,7 @@ export const DEFAULTS: AskJevSettings = {
   sensitivity: "balanced",
   customKeywords: [],
   allowlist: [],
-  requireConfirmOnAsk: true,
+  requireConfirmOnAsk: false,
   showOverlayOnProceed: false,
   gateFormSubmits: false,
   model: "jev-latest",
@@ -103,9 +103,13 @@ export const BUTTON_ONLY_KEYWORDS = [
   "submit",
   "post",
   "share",
-  "confirm",
-  "accept",
-  "agree",
+  // bare "confirm"/"accept"/"agree" trap GitHub PR titles + cookie banners
+  "confirm payment",
+  "confirm delete",
+  "confirm purchase",
+  "confirm order",
+  "i agree",
+  "accept all",
 ] as const;
 
 export const DESTRUCTIVE_CLASS_RE =

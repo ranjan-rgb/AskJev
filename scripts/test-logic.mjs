@@ -14,7 +14,11 @@ const outDir = join(root, ".tmp-test-logic");
 mkdirSync(outDir, { recursive: true });
 
 await esbuild.build({
-  entryPoints: [join(root, "src/autopilot-jev.ts"), join(root, "src/guard-policy.ts")],
+  entryPoints: [
+    join(root, "src/autopilot-jev.ts"),
+    join(root, "src/guard-policy.ts"),
+    join(root, "src/defaults.ts"),
+  ],
   bundle: true,
   platform: "node",
   format: "esm",
@@ -135,6 +139,33 @@ function ok(msg) {
   assert.match(guardJevTimeoutMessage(), /Dismiss/i);
   assert.ok(passThroughUntilFrom("allow", 0) > 0);
   ok("Guard Jev timeout + message policy");
+}
+
+const {
+  DEFAULTS,
+  BUTTON_ONLY_KEYWORDS,
+  BASE_KEYWORDS,
+} = await import(join(outDir, "defaults.mjs"));
+
+{
+  assert.equal(DEFAULTS.requireConfirmOnAsk, false, "quiet Guard default");
+  assert.equal(DEFAULTS.showOverlayOnProceed, false);
+  assert.ok(!BUTTON_ONLY_KEYWORDS.includes("confirm"), "no bare confirm");
+  assert.ok(!BUTTON_ONLY_KEYWORDS.includes("accept"), "no bare accept");
+  assert.ok(!BUTTON_ONLY_KEYWORDS.includes("agree"), "no bare agree");
+  assert.ok(BUTTON_ONLY_KEYWORDS.includes("confirm payment"));
+  const all = [...BASE_KEYWORDS, ...BUTTON_ONLY_KEYWORDS].map((k) =>
+    k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+  );
+  const re = new RegExp(`\\b(${all.join("|")})\\b`, "i");
+  // Bare "confirm" / soft words must not match (GitHub PR titles, cookie banners)
+  assert.equal(re.test("Confirm"), false, "bare Confirm must not match");
+  assert.equal(re.test("please confirm later in review"), false);
+  assert.equal(re.test("Accept all cookies"), true); // phrase "accept all"
+  assert.equal(re.test("Accept"), false, "bare Accept must not match");
+  assert.equal(re.test("Confirm payment"), true);
+  assert.equal(re.test("Delete repository"), true);
+  ok("quiet Guard defaults + narrow keywords");
 }
 
 rmSync(outDir, { recursive: true, force: true });
