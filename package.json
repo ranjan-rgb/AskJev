@@ -19,7 +19,8 @@
     "test:extension": "node scripts/test-extension.mjs",
     "test:logic": "node scripts/test-logic.mjs",
     "test:mcp": "npm test --prefix mcp",
-    "build:css": "tailwindcss -i ./src/ui/tailwind.css -o ./extension/ui.css --minify"
+    "build:css": "tailwindcss -i ./src/ui/tailwind.css -o ./extension/ui.css --minify",
+    "check:guard": "node scripts/check-guard-live.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.287",

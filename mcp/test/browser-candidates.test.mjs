@@ -112,10 +112,32 @@ describe("profile selection", () => {
     assert.equal(c.isReal, false);
   });
 
-  it("uses the real profile only with ASKJEV_USE_MY_PROFILE", () => {
-    const c = chooseProfile(brave, { ASKJEV_USE_MY_PROFILE: "1" }, "linux");
-    // linux path does not exist here, so it falls back — but the opt-in is read
-    assert.equal(c.isReal, false);
+  it("never returns the user's real profile, flag or no flag", () => {
+    // Launching a real Chromium profile via Playwright wipes its cookie store.
+    // There is deliberately no opt-in.
+    for (const env of [{}, { ASKJEV_USE_MY_PROFILE: "1" }, { ASKJEV_OWN_PROFILE: "0" }]) {
+      const c = chooseProfile(brave, env, "darwin");
+      assert.equal(c.isReal, false);
+      assert.equal(c.dir, ownProfileDir());
+    }
+  });
+
+  it("refuses an override aimed at the real profile", () => {
+    const real = realProfileDir(brave, "darwin", {});
+    assert.throws(
+      () => chooseProfile(brave, { ASKJEV_PROFILE_DIR: real }, "darwin"),
+      /will not open it|signing you out/,
+    );
+    // trailing slash must not sneak past the comparison
+    assert.throws(
+      () => chooseProfile(brave, { ASKJEV_PROFILE_DIR: real + "/" }, "darwin"),
+      /will not open it|signing you out/,
+    );
+  });
+
+  it("still allows a dedicated automation directory", () => {
+    const c = chooseProfile(brave, { ASKJEV_PROFILE_DIR: "/tmp/askjev-x" }, "darwin");
+    assert.equal(c.dir, "/tmp/askjev-x");
   });
 
   it("reports a profile as unlocked when there is no SingletonLock", () => {

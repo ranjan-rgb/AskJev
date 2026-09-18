@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   chromium,
   type Browser,
@@ -86,22 +86,26 @@ export function isProfileLocked(dir: string): boolean {
 }
 
 /**
- * Opt IN to driving the user's real browser profile with ASKJEV_USE_MY_PROFILE=1.
+ * DO NOT launch the user's real browser profile. Not as a default, not behind a
+ * flag. This is a hard rule, learned the expensive way.
  *
- * This is opt-in because it cost a real user their X session. Autopilot clicked
- * a control at 0.25 confidence and hit Log out; Guard scored it 0.05 and allowed
- * it, because signing out is not "pay, delete, send, publish, deploy" — the
- * definition irreversible has always used. On a scratch profile that is a
- * non-event. On the profile holding every session the user owns, a single
- * mis-click destroys state they cannot get back from us.
+ * Chromium encrypts its cookie store with an OS keychain secret — "Brave Safe
+ * Storage" on macOS. A Playwright-launched browser does not get access to that
+ * secret, so it cannot decrypt the existing cookies and silently REINITIALISES
+ * the store with a fresh key. Every session, every site, destroyed on launch.
+ * It is not recoverable: the database is rewritten, so the old rows are not even
+ * in the free pages.
  *
- * Until Guard scores loss of account state, the real profile is not a safe
- * default, however much better it feels when it works.
+ * This happened to a real user. The damage is done by launchPersistentContext
+ * itself, before any page loads — so Guard, the confidence gate and the
+ * irreversible score are all irrelevant to it. No amount of click-level safety
+ * helps, which is why this cannot be an opt-in flag with a warning.
+ *
+ * To act on a browser where the user is already signed in, use the extension:
+ * it runs inside their real browser and never touches the profile on disk.
  */
-function wantsRealProfile(env: NodeJS.ProcessEnv = process.env): boolean {
-  return ["1", "true", "yes"].includes(
-    String(env.ASKJEV_USE_MY_PROFILE || "").trim().toLowerCase(),
-  );
+function realProfileIsForbidden(): true {
+  return true;
 }
 
 export type ProfileChoice = {
@@ -111,35 +115,39 @@ export type ProfileChoice = {
 };
 
 /**
- * Pick the profile to drive.
+ * Pick the profile to drive — always one AskJev owns.
  *
- * Defaults to AskJev's own persistent profile. It still remembers logins across
- * restarts — sign in once per site and it sticks — but a wrong click can only
- * ever cost the sessions the user chose to put there, not every session they
- * own. See wantsRealProfile for why the real profile is not the default.
+ * It is persistent, so a user who signs into a site inside the AskJev window
+ * stays signed in across restarts. What it never does is open the profile their
+ * everyday browser uses; see realProfileIsForbidden.
+ *
+ * ASKJEV_PROFILE_DIR is still honoured for people running a dedicated automation
+ * profile, but it is refused if it points at a real browser profile directory.
  */
 export function chooseProfile(
   browserBin: string | null,
   env: NodeJS.ProcessEnv = process.env,
   platform: NodeJS.Platform = process.platform,
 ): ProfileChoice {
+  realProfileIsForbidden();
   const custom = (env.ASKJEV_PROFILE_DIR || "").trim();
-  if (custom) return { dir: custom, isReal: false };
-  if (!wantsRealProfile(env)) return { dir: ownProfileDir(), isReal: false };
+  if (!custom) return { dir: ownProfileDir(), isReal: false };
 
+  // Guard the override too — pointing it at a real profile destroys it just the
+  // same, and "I set an env var" is not informed consent for that.
   const real = realProfileDir(browserBin, platform, env);
-  if (real && existsSync(real)) {
-    if (isProfileLocked(real)) {
-      throw new Error(
-        "ASKJEV_USE_MY_PROFILE=1 asks AskJev to drive your real browser profile, " +
-          "but your browser is open and holding it. Quit Brave/Chrome completely " +
-          "(Cmd+Q), then ask again. Note that Autopilot can then click things that " +
-          "sign you out of your real accounts — unset it to use AskJev's own profile.",
-      );
-    }
-    return { dir: real, isReal: true };
+  if (real && resolve(custom) === resolve(real)) {
+    throw new Error(
+      "ASKJEV_PROFILE_DIR points at your everyday browser profile. AskJev will " +
+        "not open it: a Playwright-launched browser cannot read the OS keychain " +
+        "secret that encrypts the cookie store, so Chromium wipes and recreates " +
+        "it, signing you out of every site with no way to undo it. Point it at an " +
+        "empty directory, or unset it to use " +
+        ownProfileDir() +
+        ". To drive a browser you are already signed into, use the AskJev extension.",
+    );
   }
-  return { dir: ownProfileDir(), isReal: false };
+  return { dir: custom, isReal: false };
 }
 
 /** Debug port to launch on, so other AskJev processes can attach to us. */
