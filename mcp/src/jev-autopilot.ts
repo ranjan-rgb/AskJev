@@ -81,19 +81,6 @@ function toActAction(action: AutopilotAction): ActAction | null {
   return null;
 }
 
-async function withTimeout<T>(
-  p: Promise<T>,
-  ms: number,
-  label: string,
-): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<never>((_, rej) =>
-      setTimeout(() => rej(new Error(label)), ms),
-    ),
-  ]);
-}
-
 /**
  * Run Jev-driven multi-step autopilot against the CDP/Playwright browser.
  * Requires ASKJEV_API_KEY or TYPESAFE_API_KEY — never falls back to silent scroll.
@@ -153,17 +140,19 @@ export async function runJevAutopilot(input: {
 
       let decision;
       try {
-        decision = await withTimeout(
-          decideNextStep({
-            apiKey,
-            state: snap.state,
-            elements: snap.elements,
-            model: "jev-latest",
+        decision = await decideNextStep({
+          apiKey,
+          page: {
+            goal,
+            url: snap.url,
+            title: snap.title,
             step,
-          }),
-          JEV_TIMEOUT_MS,
-          "jev_timeout_15s",
-        );
+            history: steps,
+            elements: snap.elements,
+          },
+          model: "jev-latest",
+          timeoutMs: JEV_TIMEOUT_MS,
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         steps.push(`jev error: ${msg}`);
