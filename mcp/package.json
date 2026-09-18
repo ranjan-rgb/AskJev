@@ -1,7 +1,7 @@
 {
   "name": "askjev-mcp",
-  "version": "1.5.8",
-  "description": "AskJev MCP bridge \u2014 connect Claude Desktop, Cursor, or any MCP client to the AskJev browser extension over localhost",
+  "version": "1.6.0",
+  "description": "AskJev MCP \u2014 Claude/Cursor drive the browser from natural language (CDP + optional extension Guard)",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -40,6 +40,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "playwright-core": "^1.49.1",
     "ws": "^8.18.0",
     "zod": "^3.25.0"
   },

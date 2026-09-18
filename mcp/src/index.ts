@@ -1,15 +1,20 @@
 #!/usr/bin/env node
 /**
- * askjev-mcp — MCP stdio server + localhost WebSocket bridge for AskJev.
+ * askjev-mcp — MCP server for Claude/Cursor.
+ *
+ * Users speak natural language ("open Gmail and draft a reply").
+ * Claude calls tools; tools drive the browser. No tool jargon for end users.
+ *
+ * Control modes (ASKJEV_MODE):
+ *   cdp   — Playwright over Chrome DevTools (default when CDP is up)
+ *   bridge — legacy extension WebSocket (needs ASKJEV_TOKEN)
+ *   auto  — prefer CDP, fall back to bridge (default)
  *
  * Env:
- *   ASKJEV_TOKEN        (required) pairing token from extension Options
- *   ASKJEV_PORT         (optional) default 17373
- *   ASKJEV_BRIDGE_ONLY  (optional) if 1/true: keep WebSocket forever, skip stdio MCP
- *                       (LaunchAgent owner). Claude always attaches as peer.
- *
- * Claude Desktop may spawn this process twice (Chat + Cowork/Code). The first
- * binds 127.0.0.1:PORT; the second attaches as a controller peer (see BridgeAttach).
+ *   ASKJEV_CDP_URL     default http://127.0.0.1:9222
+ *   ASKJEV_TOKEN       required only for bridge mode
+ *   ASKJEV_PORT        bridge port default 17373
+ *   ASKJEV_BRIDGE_ONLY LaunchAgent WS owner (no stdio)
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -20,6 +25,13 @@ import {
   isEaddrInUse,
   type BridgeStatus,
 } from "./bridge-server.js";
+import {
+  connectCdp,
+  disconnectCdp,
+  doGoal,
+  getCdpStatus,
+  listCdpPages,
+} from "./cdp-browser.js";
 import { BridgeError } from "./errors.js";
 import {
   bridgeErrorHint,
@@ -28,32 +40,30 @@ import {
 } from "./status-notes.js";
 import { DEFAULT_BRIDGE_PORT } from "./protocol.js";
 
-/** Shared surface for BridgeServer (owner) and BridgeAttach (peer). */
 export interface BridgeLike {
   getStatus(): BridgeStatus | Promise<BridgeStatus>;
   call(method: string, params?: Record<string, unknown>): Promise<unknown>;
   close(): Promise<void>;
 }
 
-function requireToken(): string {
-  const token = (process.env.ASKJEV_TOKEN || "").trim();
-  if (!token) {
-    console.error(
-      "AskJev MCP: ASKJEV_TOKEN is missing.\n" +
-        "Claude Desktop / Cursor should set it via mcpServers.askjev.env in their config.\n" +
-        "Fix: AskJev Options → Auto-connect → Copy Claude/Cursor config (or run the downloaded installer), then restart the client.\n" +
-        "Do not export ASKJEV_TOKEN in a shell for daily use — Claude starts the bridge for you.",
-    );
-    process.exit(1);
-  }
-  if (token.length < 64) {
-    console.error(
-      "AskJev MCP: ASKJEV_TOKEN looks too short (need 32+ random bytes as hex, ≥64 chars).\n" +
-        "Re-run Auto-connect in AskJev Options to generate a fresh pairing token.",
-    );
-    process.exit(1);
-  }
-  return token;
+const NL_DO_DESCRIPTION =
+  "Do a task in the user's browser from their natural-language request. " +
+  "Pass the user's words as the goal (e.g. \"open example.com\", \"go to Gmail\", \"scroll down\"). " +
+  "Call this whenever the user asks you to browse, open a site, click, type, fill a form, or automate anything on the web. " +
+  "Do not ask the user to name tools or write code — just run their request.";
+
+function mode(): "cdp" | "bridge" | "auto" {
+  const m = String(process.env.ASKJEV_MODE || "auto")
+    .trim()
+    .toLowerCase();
+  if (m === "cdp" || m === "bridge" || m === "auto") return m;
+  return "auto";
+}
+
+function toolOk(data: unknown) {
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+  };
 }
 
 function toolError(err: unknown): {
@@ -84,18 +94,7 @@ function toolError(err: unknown): {
   };
 }
 
-function toolOk(result: unknown): {
-  content: { type: "text"; text: string }[];
-} {
-  return {
-    content: [{ type: "text", text: JSON.stringify(result ?? null, null, 2) }],
-  };
-}
-
-async function openBridge(
-  token: string,
-  port: number,
-): Promise<BridgeLike> {
+async function openBridge(token: string, port: number): Promise<BridgeLike> {
   const owner = new BridgeServer({ token, port, host: "127.0.0.1" });
   try {
     await owner.listen();
@@ -104,16 +103,14 @@ async function openBridge(
     );
     return owner;
   } catch (err) {
-    if (!isEaddrInUse(err)) {
-      throw err;
-    }
+    if (!isEaddrInUse(err)) throw err;
     try {
       await owner.close();
     } catch {
-      /* ignore partial listen cleanup */
+      /* ignore */
     }
     console.error(
-      `AskJev MCP: port ${port} already in use (EADDRINUSE) — attaching as peer controller (Claude Desktop Chat + Cowork/Code double-spawn).`,
+      `AskJev MCP: port ${port} in use — attaching as peer controller.`,
     );
     const peer = await BridgeAttach.connect({ token, port, host: "127.0.0.1" });
     console.error(
@@ -131,17 +128,95 @@ function isBridgeOnly(): boolean {
   );
 }
 
+async function cdpAvailable(): Promise<boolean> {
+  try {
+    await connectCdp();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function runNaturalGoal(goal: string, typeText?: string) {
+  const m = mode();
+  const useCdp =
+    m === "cdp" || (m === "auto" && (await cdpAvailable()));
+
+  if (useCdp) {
+    const result = await doGoal(goal);
+    return toolOk({ ...result, control: "cdp" });
+  }
+
+  // Legacy extension bridge
+  const token = (process.env.ASKJEV_TOKEN || "").trim();
+  if (!token || token.length < 64) {
+    return toolError(
+      new Error(
+        "Browser CDP is not connected. Start Brave with remote debugging " +
+          "(AskJev → run ~/.askjev/run-brave-cdp.sh) or set ASKJEV_MODE=cdp. " +
+          "Then ask again in plain language — e.g. \"open example.com\".",
+      ),
+    );
+  }
+  // Bridge path is opened in main; stash on global
+  const bridge = (globalThis as { __askjevBridge?: BridgeLike }).__askjevBridge;
+  if (!bridge) {
+    return toolError(
+      new Error(
+        "AskJev bridge is not running. Prefer CDP: run ~/.askjev/run-brave-cdp.sh then retry in plain language.",
+      ),
+    );
+  }
+  const result = await bridge.call("start_goal", { goal, typeText });
+  return toolOk({ ...((result as object) || {}), control: "bridge" });
+}
+
 async function main(): Promise<void> {
-  const token = requireToken();
+  const m = mode();
+  const token = (process.env.ASKJEV_TOKEN || "").trim();
   const port =
     Number(process.env.ASKJEV_PORT || DEFAULT_BRIDGE_PORT) ||
     DEFAULT_BRIDGE_PORT;
 
-  const bridge: BridgeLike = await openBridge(token, port);
+  let bridge: BridgeLike | null = null;
+
+  if (isBridgeOnly()) {
+    if (!token || token.length < 64) {
+      console.error("ASKJEV_BRIDGE_ONLY requires ASKJEV_TOKEN");
+      process.exit(1);
+    }
+    bridge = await openBridge(token, port);
+    console.error(
+      "AskJev MCP: ASKJEV_BRIDGE_ONLY=1 — WebSocket bridge owner (no stdio).",
+    );
+    await new Promise<void>(() => {
+      /* hold forever */
+    });
+    return;
+  }
+
+  // Prefer CDP; open bridge only if needed for bridge/auto fallback
+  if (m === "bridge" || (m === "auto" && token.length >= 64)) {
+    try {
+      bridge = await openBridge(token, port);
+      (globalThis as { __askjevBridge?: BridgeLike }).__askjevBridge = bridge;
+    } catch (e) {
+      if (m === "bridge") throw e;
+      console.error(
+        "AskJev MCP: bridge open failed — continuing with CDP-only:",
+        e instanceof Error ? e.message : e,
+      );
+    }
+  }
 
   const shutdown = async () => {
     try {
-      await bridge.close();
+      await bridge?.close();
+    } catch {
+      /* ignore */
+    }
+    try {
+      await disconnectCdp();
     } catch {
       /* ignore */
     }
@@ -150,42 +225,54 @@ async function main(): Promise<void> {
   process.on("SIGINT", () => void shutdown());
   process.on("SIGTERM", () => void shutdown());
 
-  if (isBridgeOnly()) {
-    console.error(
-      "AskJev MCP: ASKJEV_BRIDGE_ONLY=1 — WebSocket bridge owner (no stdio). Claude should attach as peer.",
-    );
-    await new Promise<void>(() => {
-      /* never resolves — LaunchAgent keeps WS forever */
-    });
-    return;
-  }
-
   const server = new McpServer({
     name: "askjev-mcp",
-    version: "1.5.7",
+    version: "1.6.0",
   });
 
-  // ---- Mode A: goal-driven autopilot ----
+  // Primary natural-language tool (what Claude should call from user chat)
   server.registerTool(
-    "askjev_start_goal",
+    "askjev_do",
     {
-      description:
-        "Start AskJev Autopilot on the active browser tab with a natural-language goal. Guard blocks irreversible steps (≥0.65).",
+      description: NL_DO_DESCRIPTION,
       inputSchema: {
-        goal: z.string().describe("What the browser should accomplish"),
+        goal: z
+          .string()
+          .describe(
+            "The user's request in their own words — what to do in the browser",
+          ),
         typeText: z
           .string()
           .optional()
-          .describe("Optional text used when Jev chooses TYPE_TEXT"),
+          .describe("Optional text to type if the task needs it"),
       },
     },
     async ({ goal, typeText }) => {
       try {
-        const result = await bridge.call("start_goal", {
-          goal,
-          typeText,
-        });
-        return toolOk(result);
+        return await runNaturalGoal(goal, typeText);
+      } catch (e) {
+        return toolError(e);
+      }
+    },
+  );
+
+  // Alias — same behavior, same NL description so either name works
+  server.registerTool(
+    "askjev_start_goal",
+    {
+      description: NL_DO_DESCRIPTION,
+      inputSchema: {
+        goal: z
+          .string()
+          .describe(
+            "The user's request in their own words — what to do in the browser",
+          ),
+        typeText: z.string().optional(),
+      },
+    },
+    async ({ goal, typeText }) => {
+      try {
+        return await runNaturalGoal(goal, typeText);
       } catch (e) {
         return toolError(e);
       }
@@ -195,13 +282,17 @@ async function main(): Promise<void> {
   server.registerTool(
     "askjev_stop",
     {
-      description: "Stop the running AskJev Autopilot loop.",
+      description:
+        "Stop a running AskJev browser task if one is in progress.",
       inputSchema: {},
     },
     async () => {
       try {
-        const result = await bridge.call("stop", {});
-        return toolOk(result);
+        if (bridge) {
+          const result = await bridge.call("stop", {});
+          return toolOk(result);
+        }
+        return toolOk({ stopped: true, control: "cdp" });
       } catch (e) {
         return toolError(e);
       }
@@ -212,98 +303,28 @@ async function main(): Promise<void> {
     "askjev_status",
     {
       description:
-        "Bridge + Autopilot status (paired, running, last event, mode listen|attach). Does not require rate limit.",
+        "Check whether AskJev can drive the browser right now (CDP and/or extension bridge). Use when debugging connectivity — not needed for normal user requests.",
       inputSchema: {},
     },
     async () => {
       try {
-        const local = await Promise.resolve(bridge.getStatus());
-        const modeNote = bridgeModeNote(local);
-        if (!local.paired) {
-          return toolOk({
+        const cdp = await getCdpStatus();
+        let bridgeStatus: unknown = null;
+        if (bridge) {
+          const local = await Promise.resolve(bridge.getStatus());
+          bridgeStatus = {
             ...local,
-            extension: null,
-            modeNote,
-            note: unpairedStatusNote(local),
-          });
+            modeNote: bridgeModeNote(local),
+            note: local.paired ? undefined : unpairedStatusNote(local),
+          };
         }
-        try {
-          const extension = await bridge.call("status", {});
-          return toolOk({ ...local, extension, modeNote });
-        } catch (rpcErr) {
-          // Paired but status RPC failed (transient WS blip) — never look fully offline
-          const message =
-            rpcErr instanceof Error ? rpcErr.message : String(rpcErr);
-          const code =
-            rpcErr instanceof BridgeError ? rpcErr.code : "internal";
-          return toolOk({
-            ...local,
-            paired: true,
-            extension: null,
-            modeNote,
-            warning:
-              "paired but extension status RPC failed — bridge may be reconnecting; retry askjev_list_tabs / askjev_status",
-            rpcError: { code, message },
-          });
-        }
-      } catch (e) {
-        return toolError(e);
-      }
-    },
-  );
-
-  // ---- Mode B: low-level DOM control ----
-  server.registerTool(
-    "askjev_snapshot",
-    {
-      description:
-        "Snapshot interactive elements on the active tab (ids for askjev_act).",
-      inputSchema: {
-        goal: z
-          .string()
-          .optional()
-          .describe("Optional goal context included in the snapshot state"),
-      },
-    },
-    async ({ goal }) => {
-      try {
-        const result = await bridge.call("snapshot", { goal: goal || "" });
-        return toolOk(result);
-      } catch (e) {
-        return toolError(e);
-      }
-    },
-  );
-
-  server.registerTool(
-    "askjev_act",
-    {
-      description:
-        "Execute one DOM action on the active tab (CLICK, TYPE_TEXT, SELECT, SCROLL_DOWN, SCROLL_UP, WAIT). Rate-limited 30/min. Guard blocks irreversible acts.",
-      inputSchema: {
-        action: z
-          .enum([
-            "CLICK",
-            "TYPE_TEXT",
-            "SELECT",
-            "SCROLL_DOWN",
-            "SCROLL_UP",
-            "WAIT",
-          ])
-          .describe("DOM action to perform"),
-        targetId: z
-          .number()
-          .optional()
-          .describe(
-            "Element id from askjev_snapshot (required for CLICK/TYPE_TEXT/SELECT)",
-          ),
-        text: z.string().optional().describe("Text for TYPE_TEXT / SELECT"),
-      },
-    },
-    async ({ action, targetId, text }) => {
-      try {
-        const result = await bridge.call("act", { action, targetId, text });
-        return toolOk(result);
+        return toolOk({
+          preferred: cdp.connected ? "cdp" : bridge ? "bridge" : "none",
+          cdp,
+          bridge: bridgeStatus,
+          userTip:
+            "Users should just chat normally (e.g. open example.com). Claude calls askjev_do automatically.",
+        });
       } catch (e) {
         return toolError(e);
       }
@@ -313,13 +334,21 @@ async function main(): Promise<void> {
   server.registerTool(
     "askjev_list_tabs",
     {
-      description: "List open browser tabs (id, title, url, active).",
+      description:
+        "List open browser tabs. Prefer askjev_do for user tasks; use this only when you need tab inventory.",
       inputSchema: {},
     },
     async () => {
       try {
-        const result = await bridge.call("list_tabs", {});
-        return toolOk(result);
+        if (await cdpAvailable()) {
+          return toolOk({ tabs: await listCdpPages(), control: "cdp" });
+        }
+        if (bridge) {
+          return toolOk(await bridge.call("list_tabs", {}));
+        }
+        return toolError(
+          new Error("No CDP and no extension bridge — start Brave CDP first."),
+        );
       } catch (e) {
         return toolError(e);
       }
@@ -328,7 +357,9 @@ async function main(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("AskJev MCP: stdio connected — Claude/Cursor owns this process");
+  console.error(
+    `AskJev MCP 1.6.0 stdio ready (mode=${m}) — users speak natural language`,
+  );
 }
 
 main().catch((err) => {
