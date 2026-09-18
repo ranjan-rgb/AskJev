@@ -4,266 +4,65 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AskJev</title>
-  <style>
-    :root {
-      --bg: #09090b;
-      --elevated: #0c0c0e;
-      --card: #18181b;
-      --hover: #1f1f23;
-      --line: #27272a;
-      --line2: #3f3f46;
-      --text: #fafafa;
-      --mute: #a1a1aa;
-      --dim: #71717a;
-      --soft: #d4d4d8;
-      --ok: #b8c4b0;
-      --warn: #c4b89a;
-      --off: #52525b;
-      --danger: #c4a4a4;
-      --danger-bg: #1a1212;
-      --danger-line: #3f2a2a;
-      --focus: #e4e4e7;
-      --radius: 10px;
-      --radius-lg: 12px;
-    }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; }
-    body {
-      width: 300px;
-      background: var(--bg);
-      color: var(--text);
-      font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
-      -webkit-font-smoothing: antialiased;
-    }
-    :focus { outline: none; }
-    :focus-visible {
-      outline: 2px solid var(--focus);
-      outline-offset: 2px;
-    }
-    .wrap { padding: 8px 10px; }
-    .head {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 8px;
-    }
-    .logo {
-      width: 28px;
-      height: 28px;
-      border-radius: 7px;
-      background: var(--card);
-      border: 1px solid var(--line);
-      display: grid;
-      place-items: center;
-      flex-shrink: 0;
-    }
-    .titles { flex: 1; min-width: 0; }
-    .titles h1 {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 600;
-      letter-spacing: -0.01em;
-    }
-    .titles p {
-      margin: 2px 0 0;
-      font-size: 11px;
-      color: var(--dim);
-    }
-    .switch {
-      appearance: none;
-      width: 40px;
-      height: 24px;
-      border-radius: 999px;
-      border: 1px solid var(--line2);
-      background: var(--line2);
-      position: relative;
-      cursor: pointer;
-      flex-shrink: 0;
-      transition: background 0.12s ease, border-color 0.12s ease;
-    }
-    .switch::after {
-      content: "";
-      position: absolute;
-      top: 2px;
-      left: 2px;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: var(--soft);
-      transition: transform 0.12s ease, background 0.12s ease;
-    }
-    .switch.on {
-      background: var(--text);
-      border-color: var(--text);
-    }
-    .switch.on::after {
-      transform: translateX(16px);
-      background: var(--bg);
-    }
-    #warn {
-      display: none;
-      margin-bottom: 8px;
-      padding: 8px 10px;
-      border-radius: var(--radius);
-      background: var(--danger-bg);
-      border: 1px solid var(--danger-line);
-      color: var(--danger);
-      font-size: 12px;
-      line-height: 1.4;
-    }
-    #warn.show { display: block; }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-lg);
-      padding: 2px 10px;
-      margin-bottom: 8px;
-    }
-    .status-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 6px 0;
-      font-size: 12px;
-    }
-    .status-row + .status-row { border-top: 1px solid var(--line); }
-    .status-row .l { color: var(--mute); }
-    .status-row .r {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-weight: 500;
-      color: var(--text);
-      font-variant-numeric: tabular-nums;
-    }
-    .dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--off);
-      flex-shrink: 0;
-    }
-    .dot.ok { background: var(--ok); }
-    .dot.warn { background: var(--warn); }
-    .metrics {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 6px;
-      margin-bottom: 8px;
-    }
-    .metric {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-lg);
-      padding: 8px;
-      text-align: left;
-    }
-    .metric .k { font-size: 11px; color: var(--dim); letter-spacing: 0.01em; }
-    .metric .n {
-      margin-top: 4px;
-      font-size: 16px;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-      letter-spacing: -0.02em;
-    }
-    .actions { display: grid; gap: 6px; }
-    .btn {
-      appearance: none;
-      border: 1px solid var(--line);
-      background: var(--card);
-      color: var(--text);
-      border-radius: var(--radius);
-      padding: 10px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      text-align: center;
-      font-family: inherit;
-    }
-    .btn:hover { background: var(--hover); }
-    .btn:active { background: var(--elevated); }
-    .btn:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-    .btn.primary {
-      background: var(--text);
-      color: var(--bg);
-      border-color: var(--text);
-    }
-    .btn.primary:hover { filter: brightness(0.94); }
-    .foot {
-      margin-top: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 11px;
-      color: var(--dim);
-    }
-    .foot button {
-      appearance: none;
-      background: none;
-      border: 0;
-      color: var(--mute);
-      font-size: 11px;
-      cursor: pointer;
-      padding: 2px 0;
-      font-family: inherit;
-    }
-    .foot button:hover { color: var(--text); }
-    @media (prefers-reduced-motion: reduce) {
-      .switch, .switch::after { transition: none; }
-    }
-  </style>
+  <link rel="stylesheet" href="ui.css" />
 </head>
-<body>
-  <div class="wrap">
-    <div class="head">
-      <div class="logo" aria-hidden="true">
+<body class="w-popup">
+  <div class="p-2.5">
+    <div class="mb-2 flex items-center gap-2.5">
+      <div class="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-zinc-800 bg-zinc-900" aria-hidden="true">
         <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M10 2.5L17 8.2L14.6 9.4L10 12.2L5.4 9.4L3 8.2L10 2.5Z" fill="#FAFAFA"/>
           <path d="M10 7.2L14.2 9.1L10 11.2L5.8 9.1L10 7.2Z" fill="#18181B"/>
           <rect x="6.5" y="14.2" width="7" height="1.4" fill="#A1A1AA"/>
         </svg>
       </div>
-      <div class="titles">
-        <h1>AskJev</h1>
-        <p id="armLabel">Protection on</p>
+      <div class="min-w-0 flex-1">
+        <h1 class="m-0 text-sm font-semibold tracking-tight">AskJev</h1>
+        <p class="m-0 mt-0.5 text-[11px] text-zinc-500" id="armLabel">Protection on</p>
       </div>
       <button class="switch" id="en" type="button" aria-label="Toggle protection" aria-pressed="true"></button>
     </div>
 
     <div id="warn" role="alert">Add a TypeSafe API key in Settings to run Autopilot and Guard.</div>
 
-    <div class="card" role="status" aria-live="polite">
-      <div class="status-row">
-        <span class="l">API key</span>
-        <span class="r"><span class="dot" id="keyDot"></span><span id="key">—</span></span>
+    <div class="mb-2 rounded-xl border border-zinc-800 bg-zinc-900 px-2.5 py-2" role="status" aria-live="polite">
+      <div class="flex items-center justify-between py-1 text-[11px]">
+        <span class="text-zinc-500">API key</span>
+        <span class="text-zinc-300"><span class="dot" id="keyDot"></span><span id="key">—</span></span>
       </div>
-      <div class="status-row">
-        <span class="l">Claude bridge</span>
-        <span class="r"><span class="dot" id="bridgeDot"></span><span id="bridge">—</span></span>
+      <div class="flex items-center justify-between py-1 text-[11px]">
+        <span class="text-zinc-500">Claude bridge</span>
+        <span class="text-zinc-300"><span class="dot" id="bridgeDot"></span><span id="bridge">—</span></span>
       </div>
-      <div class="status-row">
-        <span class="l">Mode</span>
-        <span class="r"><span class="dot ok" id="modeDot"></span><span id="mode">Guard</span></span>
+      <div class="flex items-center justify-between py-1 text-[11px]">
+        <span class="text-zinc-500">Mode</span>
+        <span class="text-zinc-300"><span class="dot ok" id="modeDot"></span><span id="mode">Guard</span></span>
       </div>
     </div>
 
-    <div class="metrics" aria-label="Guard counters">
-      <div class="metric"><div class="k">Blocked</div><div class="n" id="b">0</div></div>
-      <div class="metric"><div class="k">Asked</div><div class="n" id="a">0</div></div>
-      <div class="metric"><div class="k">Allowed</div><div class="n" id="p">0</div></div>
+    <div class="mb-2 grid grid-cols-3 gap-1.5" aria-label="Guard counters">
+      <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-2 text-left">
+        <div class="text-[11px] text-zinc-500">Blocked</div>
+        <div class="mt-1 text-base font-semibold tabular-nums tracking-tight" id="b">0</div>
+      </div>
+      <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-2 text-left">
+        <div class="text-[11px] text-zinc-500">Asked</div>
+        <div class="mt-1 text-base font-semibold tabular-nums tracking-tight" id="a">0</div>
+      </div>
+      <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-2 text-left">
+        <div class="text-[11px] text-zinc-500">Allowed</div>
+        <div class="mt-1 text-base font-semibold tabular-nums tracking-tight" id="p">0</div>
+      </div>
     </div>
 
-    <div class="actions">
-      <button class="btn primary" id="auto" type="button">Open Autopilot</button>
-      <button class="btn" id="opts" type="button">Settings</button>
+    <div class="grid gap-1.5">
+      <button class="aj-btn-primary" id="auto" type="button">Open Autopilot</button>
+      <button class="aj-btn" id="opts" type="button">Settings</button>
     </div>
 
-    <div class="foot">
-      <span id="ver">v1.5.7</span>
-      <button type="button" id="docs">Bridge help</button>
+    <div class="mt-2 flex items-center justify-between text-[11px] text-zinc-500">
+      <span id="ver">v1.6.1</span>
+      <button type="button" id="docs" class="bg-transparent p-0 text-[11px] text-zinc-400 hover:text-zinc-50">Bridge help</button>
     </div>
   </div>
   <script type="module" src="popup.js"></script>

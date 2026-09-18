@@ -1,6 +1,11 @@
 import * as esbuild from "esbuild";
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { execSync } from "node:child_process";
+
+execSync("npx tailwindcss -i ./src/ui/tailwind.css -o ./extension/ui.css --minify", {
+  stdio: "inherit",
+});
 
 const outDir = "extension";
 mkdirSync(outDir, { recursive: true });
