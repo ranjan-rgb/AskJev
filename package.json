@@ -1,6 +1,6 @@
 {
   "name": "askjev",
-  "version": "1.5.3",
+  "version": "1.5.5",
   "private": true,
   "description": "AskJev \u2014 Jev autopilot + irreversible-click guard, with MCP agent bridge for Claude/Cursor (TypeSafe System One)",
   "scripts": {
@@ -11,7 +11,12 @@
     "demo": "python3 -m http.server 8765 --directory demo",
     "typecheck": "tsc -p tsconfig.json --noEmit && npm run typecheck --prefix mcp",
     "postinstall": "npm install --prefix mcp",
-    "release:zip": "npm run pack"
+    "release:zip": "npm run pack",
+    "pack:mcpb": "node scripts/pack-mcpb.mjs",
+    "pack:chrome": "node scripts/pack-chrome.mjs",
+    "test": "node scripts/test-extension.mjs && npm test --prefix mcp",
+    "test:extension": "node scripts/test-extension.mjs",
+    "test:mcp": "npm test --prefix mcp"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.287",
