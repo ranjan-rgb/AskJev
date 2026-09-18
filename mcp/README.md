@@ -20,9 +20,10 @@ Default bridge port: `17373` (override with `ASKJEV_PORT`).
 `askjev_do` / `askjev_start_goal` run a **TypeSafe Jev Autopilot** loop over Playwright/CDP
 (System One decisions — not a Claude planner). AskJev will auto-launch Brave/Chrome when needed.
 
-**Required for multi-step goals:** set `ASKJEV_API_KEY` or `TYPESAFE_API_KEY` in the MCP server env
-(Extension Options → Auto-connect writes both when a key is saved). Without a key, multi-step goals
-fail loudly instead of silently scrolling.
+**Required for multi-step goals:** TypeSafe API key via (in order)
+`ASKJEV_API_KEY` → `TYPESAFE_API_KEY` → `~/.askjev/api-key`.
+Extension Options → Auto-connect writes Claude env **and** `~/.askjev/api-key` when a key is saved.
+Without a key, multi-step goals fail loudly instead of silently scrolling.
 
-Optional: `ASKJEV_MAX_STEPS` (default 25), `ASKJEV_BROWSER_BIN` (Brave preferred), `ASKJEV_MODE=cdp`.
+CDP is the product path (`ASKJEV_MODE=cdp` always set by Auto-connect). Optional: `ASKJEV_MAX_STEPS` (default 25), `ASKJEV_BROWSER_BIN` (Brave preferred).
 
