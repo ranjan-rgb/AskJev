@@ -19,11 +19,11 @@ Connect **Claude Desktop** or **Cursor** to the AskJev browser extension so an a
 **Preferred.** No daily terminal. No editing JSON by hand.
 
 1. Open AskJev **Options** → **Auto-connect** (creates a pairing token + arms the bridge).
-2. In Claude Desktop: **Settings → Extensions → Advanced → Install Extension…** → pick `askjev-1.5.6.mcpb` from the [GitHub release](https://github.com/ranjan2829/AskJev/releases).
+2. In Claude Desktop: **Settings → Extensions → Advanced → Install Extension…** → pick `askjev-1.5.7.mcpb` from the [GitHub release](https://github.com/ranjan2829/AskJev/releases).
 3. When Claude prompts for config, paste the **pairing token** from AskJev Options → Advanced (and confirm port `17373` if asked).
 4. Restart Claude Desktop if needed. AskJev popup shows **Connected** / paired. Tools appear as `askjev_*`.
 
-> Download the `.mcpb` from the latest release assets (`askjev-1.5.6.mcpb`). Keep the Chrome extension loaded and the bridge armed.
+> Download the `.mcpb` from the latest release assets (`askjev-1.5.7.mcpb`). Keep the Chrome extension loaded and the bridge armed.
 
 ---
 
@@ -98,6 +98,17 @@ Claude / Cursor  --stdio MCP-->  askjev-mcp (Node, launched by Claude)
 
 - **MCP process is the WebSocket server** (localhost only).
 - **Extension is the client** — arms when Auto-connect enables the bridge.
+- **WebSocket lives in an MV3 offscreen document** (not the service worker) so RPCs survive SW idle.
+
+### LaunchAgent bridge-only (Mac)
+
+If Claude Desktop double-spawns and you want a stable owner on `17373`:
+
+```bash
+ASKJEV_BRIDGE_ONLY=1 ASKJEV_TOKEN=… ASKJEV_PORT=17373 npx -y askjev-mcp
+```
+
+Claude/Cursor keep their normal stdio config and **attach as peers**. See `docs/MACBOOK-SYNC-v1.5.7.md`.
 - TypeSafe API key **never** crosses the bridge; only the extension calls `api.typesafe.ai`.
 
 ## Claude Desktop double-spawn (expected)

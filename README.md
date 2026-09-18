@@ -86,7 +86,7 @@ npm run pack           # legacy zip via pack-extension.mjs
 
 Claude Desktop one-click: [docs/MCPB.md](docs/MCPB.md).
 
-Current version: **1.5.6**
+Current version: **1.5.7**
 
 `askjev-mcp` is shippable on npm (`ranjan3129`) but is **not** published unless you ask.
 
