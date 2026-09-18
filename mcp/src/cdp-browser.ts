@@ -22,6 +22,9 @@ export type CdpStatus = {
   browser?: string;
 };
 
+/** Max visible interactive elements collected per snapshot. */
+export const SNAPSHOT_ELEMENT_LIMIT = 80;
+
 function cdpUrl(): string {
   return (process.env.ASKJEV_CDP_URL || "http://127.0.0.1:9222").trim();
 }
@@ -35,32 +38,58 @@ export function findSystemBrowser(): string | null {
   const fromEnv = (process.env.ASKJEV_BROWSER_BIN || "").trim();
   if (fromEnv && existsSync(fromEnv)) return fromEnv;
 
-  const candidates =
-    process.platform === "darwin"
-      ? [
-          "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
-          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-          "/Applications/Chromium.app/Contents/MacOS/Chromium",
-          "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-        ]
-      : process.platform === "win32"
-        ? [
-            "C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe",
-            "C:\\\\Program Files\\\\BraveSoftware\\\\Brave-Browser\\\\Application\\\\brave.exe",
-            "C:\\\\Program Files (x86)\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe",
-          ]
-        : [
-            "/usr/bin/google-chrome-stable",
-            "/usr/bin/google-chrome",
-            "/usr/bin/brave-browser",
-            "/usr/bin/chromium",
-            "/usr/bin/chromium-browser",
-          ];
-
-  for (const p of candidates) {
+  for (const p of browserCandidates()) {
     if (existsSync(p)) return p;
   }
   return null;
+}
+
+/**
+ * Candidate browser binaries, Brave first on every platform.
+ * Exported so tests can assert the paths are real strings, not escaped literals.
+ */
+export function browserCandidates(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  if (platform === "darwin") {
+    return [
+      "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      "/Applications/Chromium.app/Contents/MacOS/Chromium",
+      "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    ];
+  }
+  if (platform === "win32") {
+    const programFiles = env.PROGRAMFILES || "C:\\Program Files";
+    const programFilesX86 =
+      env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)";
+    const localAppData = env.LOCALAPPDATA || "";
+    const out = [
+      `${programFiles}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`,
+      `${programFilesX86}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`,
+      `${programFiles}\\Google\\Chrome\\Application\\chrome.exe`,
+      `${programFilesX86}\\Google\\Chrome\\Application\\chrome.exe`,
+      `${programFiles}\\Microsoft\\Edge\\Application\\msedge.exe`,
+    ];
+    if (localAppData) {
+      // Per-user installs, which is the default for Chrome on Windows.
+      out.push(
+        `${localAppData}\\BraveSoftware\\Brave-Browser\\Application\\brave.exe`,
+        `${localAppData}\\Google\\Chrome\\Application\\chrome.exe`,
+      );
+    }
+    return out;
+  }
+  return [
+    "/usr/bin/brave-browser",
+    "/usr/bin/brave-browser-stable",
+    "/snap/bin/brave",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+  ];
 }
 
 export async function ensureBrowser(): Promise<Browser> {
@@ -113,17 +142,46 @@ export async function disconnectCdp(): Promise<void> {
   launchedByMcp = false;
 }
 
+/**
+ * The tab the user is actually looking at.
+ *
+ * Playwright exposes no "active tab" over CDP, so ask each page whether it is
+ * the visible one. Picking pages[0] drove whichever tab happened to be leftmost,
+ * which is rarely the tab the user just asked about.
+ */
+async function pickVisiblePage(pages: Page[]): Promise<Page | null> {
+  const open = pages.filter((p) => !p.isClosed());
+  if (open.length === 0) return null;
+  if (open.length === 1) return open[0];
+
+  const flags = await Promise.all(
+    open.map(async (p) => {
+      try {
+        return Boolean(
+          await p.evaluate(`document.visibilityState === "visible"`),
+        );
+      } catch {
+        return false;
+      }
+    }),
+  );
+  const visibleIndex = flags.lastIndexOf(true);
+  // No page reports visible (all backgrounded) — the newest tab is the best guess.
+  return visibleIndex >= 0 ? open[visibleIndex] : open[open.length - 1];
+}
+
 async function activePage(): Promise<{ page: Page; context: BrowserContext }> {
   const b = await ensureBrowser();
   if (launchedByMcp && ownContext) {
-    const pages = ownContext.pages().filter((p) => !p.isClosed());
-    const page = pages[0] ?? (await ownContext.newPage());
+    const page =
+      (await pickVisiblePage(ownContext.pages())) ??
+      (await ownContext.newPage());
     return { page, context: ownContext };
   }
   const contexts = b.contexts();
   const context = contexts[0] ?? (await b.newContext());
-  const pages = context.pages().filter((p) => !p.isClosed());
-  const page = pages[0] ?? (await context.newPage());
+  const page =
+    (await pickVisiblePage(context.pages())) ?? (await context.newPage());
   return { page, context };
 }
 
@@ -207,17 +265,15 @@ export async function doGoal(
 export async function listCdpPages(): Promise<
   { url: string; title: string; active: boolean }[]
 > {
-  await ensureBrowser();
-  const { context } = await activePage();
+  const { context, page: current } = await activePage();
   const out: { url: string; title: string; active: boolean }[] = [];
-  const pages = context.pages();
-  for (let i = 0; i < pages.length; i++) {
-    const p = pages[i];
+  for (const p of context.pages()) {
     if (p.isClosed()) continue;
     out.push({
       url: p.url(),
       title: await p.title().catch(() => ""),
-      active: i === pages.length - 1,
+      // Same resolution AskJev acts on, so the report never contradicts reality.
+      active: p === current,
     });
   }
   return out;
@@ -250,16 +306,27 @@ export async function snapshot(goal?: string): Promise<{
 }> {
   const { page } = await activePage();
   const elements = (await page.evaluate(`(() => {
+    // Ids from an earlier snapshot must not survive: a re-render can leave a
+    // stale data-askjev-id on a different node, and locator().first() would
+    // then act on whichever copy comes first in DOM order.
+    for (const old of document.querySelectorAll("[data-askjev-id]")) {
+      old.removeAttribute("data-askjev-id");
+    }
     const out = [];
     const nodes = Array.from(
       document.querySelectorAll(
         "a, button, input, textarea, select, [role='button'], [role='link'], [contenteditable='true']",
       ),
-    ).slice(0, 80);
+    );
     let id = 1;
     for (const el of nodes) {
+      // Cap AFTER the visibility test — capping the raw query first meant a page
+      // whose first ${SNAPSHOT_ELEMENT_LIMIT} matches were hidden returned nothing at all.
+      if (out.length >= ${SNAPSHOT_ELEMENT_LIMIT}) break;
       const html = el;
       if (!(html.offsetWidth || html.offsetHeight || html.getClientRects().length)) continue;
+      if (html.getAttribute("aria-hidden") === "true") continue;
+      if (html.disabled === true) continue;
       const tag = html.tagName.toLowerCase();
       const role =
         html.getAttribute("role") ||
@@ -290,7 +357,7 @@ export async function snapshot(goal?: string): Promise<{
     `title=${title}`,
     goal ? `goal=${goal}` : "",
     `elements=${elements.length}`,
-    ...elements.slice(0, 40).map(
+    ...elements.map(
       (e) => `#${e.id} ${e.role} "${e.name}"${e.href ? ` ${e.href}` : ""}`,
     ),
   ]
