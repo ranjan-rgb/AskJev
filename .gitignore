@@ -7,3 +7,11 @@ store/*.zip
 extension/*.map
 mcp/node_modules/
 mcp/dist/
+mcpb/node_modules/
+store/*.tgz
+store/*.mcpb
+store/*.tar
+store/askjev-load/
+mcpb/server/**
+!mcpb/server/
+!mcpb/server/.gitkeep

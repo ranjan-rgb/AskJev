@@ -1,0 +1,100 @@
+{
+  "manifest_version": "0.3",
+  "name": "askjev-mcp",
+  "display_name": "AskJev",
+  "version": "1.5.5",
+  "description": "Bridge Claude Desktop to the AskJev browser extension — Autopilot + Guard over localhost.",
+  "long_description": "AskJev connects Claude Desktop to your Chrome/Brave AskJev extension so Claude can drive the active tab with the same irreversible-click Guard.\n\n1. Install this extension in Claude Desktop.\n2. Paste the pairing token from AskJev Options → Advanced.\n3. Keep the AskJev Chrome extension open with Agent Bridge armed.\n\nNo daily terminal. Traffic stays on 127.0.0.1.",
+  "author": {
+    "name": "Ranjan Shitole",
+    "email": "ranjan.shitole3129@gmail.com",
+    "url": "https://github.com/ranjan2829/AskJev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ranjan2829/AskJev.git"
+  },
+  "homepage": "https://github.com/ranjan2829/AskJev",
+  "documentation": "https://github.com/ranjan2829/AskJev/blob/main/docs/AGENT-BRIDGE.md",
+  "support": "https://github.com/ranjan2829/AskJev/issues",
+  "license": "MIT",
+  "keywords": [
+    "askjev",
+    "browser",
+    "automation",
+    "guard",
+    "autopilot",
+    "mcp"
+  ],
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/server/index.js"
+      ],
+      "env": {
+        "ASKJEV_TOKEN": "${user_config.askjev_token}",
+        "ASKJEV_PORT": "${user_config.askjev_port}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "askjev_start_goal",
+      "description": "Start Autopilot on the active tab with a natural-language goal"
+    },
+    {
+      "name": "askjev_stop",
+      "description": "Stop the running Autopilot loop"
+    },
+    {
+      "name": "askjev_status",
+      "description": "Bridge + Autopilot status"
+    },
+    {
+      "name": "askjev_snapshot",
+      "description": "Snapshot interactive elements on the active tab"
+    },
+    {
+      "name": "askjev_act",
+      "description": "Execute one DOM action (rate-limited; Guard applies)"
+    },
+    {
+      "name": "askjev_list_tabs",
+      "description": "List open browser tabs"
+    }
+  ],
+  "tools_generated": true,
+  "user_config": {
+    "askjev_token": {
+      "type": "string",
+      "title": "AskJev pairing token",
+      "description": "From AskJev Options → Advanced → Copy token (after Auto-connect).",
+      "sensitive": true,
+      "required": true
+    },
+    "askjev_port": {
+      "type": "number",
+      "title": "Bridge port",
+      "description": "Must match AskJev Options → Bridge port.",
+      "default": 17373,
+      "min": 1024,
+      "max": 65535,
+      "required": false
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  }
+}
