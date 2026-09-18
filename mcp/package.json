@@ -1,6 +1,6 @@
 {
   "name": "askjev-mcp",
-  "version": "1.5.7",
+  "version": "1.5.8",
   "description": "AskJev MCP bridge \u2014 connect Claude Desktop, Cursor, or any MCP client to the AskJev browser extension over localhost",
   "type": "module",
   "main": "dist/index.js",
