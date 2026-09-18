@@ -15,7 +15,7 @@ async function loadPopup(): Promise<void> {
   const en = document.getElementById("en") as HTMLButtonElement;
   en.classList.toggle("on", armed);
   en.setAttribute("aria-pressed", armed ? "true" : "false");
-  setText("armLabel", armed ? "Protection on" : "Protection off");
+  setText("armLabel", armed ? "Autopilot ready" : "Autopilot off");
 
   setText("b", String(s.stats?.blocked || 0));
   setText("a", String(s.stats?.asked || 0));

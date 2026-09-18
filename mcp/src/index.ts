@@ -53,7 +53,7 @@ const NL_DO_DESCRIPTION =
   "Do not ask the user to name tools or write code — just run their request.";
 
 function mode(): "cdp" | "bridge" | "auto" {
-  const m = String(process.env.ASKJEV_MODE || "auto")
+  const m = String(process.env.ASKJEV_MODE || "cdp")
     .trim()
     .toLowerCase();
   if (m === "cdp" || m === "bridge" || m === "auto") return m;
@@ -152,9 +152,7 @@ async function runNaturalGoal(goal: string, typeText?: string) {
   if (!token || token.length < 64) {
     return toolError(
       new Error(
-        "Browser CDP is not connected. Start Brave with remote debugging " +
-          "(AskJev → run ~/.askjev/run-brave-cdp.sh) or set ASKJEV_MODE=cdp. " +
-          "Then ask again in plain language — e.g. \"open example.com\".",
+        "AskJev could not open a browser. Install Google Chrome or Brave, then ask again in plain language (e.g. open example.com).",
       ),
     );
   }
@@ -227,7 +225,7 @@ async function main(): Promise<void> {
 
   const server = new McpServer({
     name: "askjev-mcp",
-    version: "1.6.0",
+    version: "1.6.2",
   });
 
   // Primary natural-language tool (what Claude should call from user chat)
@@ -323,7 +321,7 @@ async function main(): Promise<void> {
           cdp,
           bridge: bridgeStatus,
           userTip:
-            "Users should just chat normally (e.g. open example.com). Claude calls askjev_do automatically.",
+            "End users only chat (open example.com). No scripts, no ports, no tool names.",
         });
       } catch (e) {
         return toolError(e);
@@ -358,7 +356,7 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error(
-    `AskJev MCP 1.6.0 stdio ready (mode=${m}) — users speak natural language`,
+    `AskJev MCP 1.6.2 stdio ready (mode=${m}) — users speak natural language`,
   );
 }
 
