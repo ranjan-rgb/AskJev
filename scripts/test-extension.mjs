@@ -28,7 +28,23 @@ const mcpbMan = JSON.parse(readFileSync(join(root, "mcpb/manifest.json"), "utf8"
 assert.equal(mcpbMan.version, version, `mcpb manifest version mismatch`);
 assert.equal(mcpbMan.manifest_version, "0.3");
 assert.equal(mcpbMan.server?.entry_point, "server/index.js");
-assert.ok(mcpbMan.user_config?.askjev_token?.sensitive);
+// The API key is the one thing the user must supply, and it must never be
+// stored in the clear — Claude only encrypts user_config marked sensitive.
+assert.ok(
+  mcpbMan.user_config?.typesafe_api_key?.sensitive,
+  "mcpb TypeSafe API key must be marked sensitive",
+);
+assert.ok(
+  mcpbMan.user_config?.typesafe_api_key?.required,
+  "mcpb TypeSafe API key must be required",
+);
+// CDP is the product path: the bundle must not ask a normal user for a pairing
+// token or a port, and must launch in cdp mode.
+assert.equal(mcpbMan.server?.mcp_config?.env?.ASKJEV_MODE, "cdp");
+assert.ok(
+  !mcpbMan.user_config?.askjev_token,
+  "mcpb must not require a pairing token — that is the legacy bridge path",
+);
 ok(`versions aligned @ ${version}`);
 
 // --- neon / zinc HTML ---
