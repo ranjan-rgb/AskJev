@@ -19,6 +19,11 @@ import {
   type BridgeStatus,
 } from "./bridge-server.js";
 import { BridgeError } from "./errors.js";
+import {
+  bridgeErrorHint,
+  bridgeModeNote,
+  unpairedStatusNote,
+} from "./status-notes.js";
 import { DEFAULT_BRIDGE_PORT } from "./protocol.js";
 
 /** Shared surface for BridgeServer (owner) and BridgeAttach (peer). */
@@ -54,7 +59,12 @@ function toolError(err: unknown): {
   isError: true;
 } {
   if (err instanceof BridgeError) {
-    const payload = { error: err.code, message: err.message };
+    const hint = bridgeErrorHint(err.code);
+    const payload: Record<string, string> = {
+      error: err.code,
+      message: err.message,
+    };
+    if (hint) payload.hint = hint;
     return {
       content: [{ type: "text", text: JSON.stringify(payload) }],
       isError: true,
@@ -121,7 +131,7 @@ async function main(): Promise<void> {
 
   const server = new McpServer({
     name: "askjev-mcp",
-    version: "1.5.5",
+    version: "1.5.6",
   });
 
   // ---- Mode A: goal-driven autopilot ----
@@ -171,21 +181,23 @@ async function main(): Promise<void> {
     "askjev_status",
     {
       description:
-        "Bridge + Autopilot status (paired, running, last event). Does not require rate limit.",
+        "Bridge + Autopilot status (paired, running, last event, mode listen|attach). Does not require rate limit.",
       inputSchema: {},
     },
     async () => {
       try {
         const local = await Promise.resolve(bridge.getStatus());
+        const modeNote = bridgeModeNote(local);
         if (!local.paired) {
           return toolOk({
             ...local,
             extension: null,
-            note: "Extension not paired — enable Agent Bridge and ensure token matches ASKJEV_TOKEN",
+            modeNote,
+            note: unpairedStatusNote(local),
           });
         }
         const extension = await bridge.call("status", {});
-        return toolOk({ ...local, extension });
+        return toolOk({ ...local, extension, modeNote });
       } catch (e) {
         return toolError(e);
       }

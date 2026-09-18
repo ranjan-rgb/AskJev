@@ -7,6 +7,13 @@ import {
   snapshotElements,
   type DomAction,
 } from "./dom.js";
+import {
+  GUARD_JEV_TIMEOUT_MS,
+  applyGuardDismiss,
+  guardJevTimeoutMessage,
+  isPassThroughActive,
+  passThroughUntilFrom,
+} from "./guard-policy.js";
 
 type SettingsCache = {
   enabled: boolean;
@@ -244,15 +251,17 @@ if (!window.__askjevLoaded) {
     dismiss.textContent = "Dismiss — keep browsing";
     dismiss.onclick = () => {
       hideOverlay();
-      busy = false;
-      passThroughUntil = Date.now() + 1500;
+      const d = applyGuardDismiss({});
+      busy = d.busy;
+      passThroughUntil = d.passThroughUntil;
     };
     btns.append(allow, block, dismiss);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         hideOverlay();
-        busy = false;
-        passThroughUntil = Date.now() + 1500;
+        const d = applyGuardDismiss({});
+        busy = d.busy;
+        passThroughUntil = d.passThroughUntil;
         window.removeEventListener("keydown", onKey, true);
       }
     };
@@ -289,8 +298,8 @@ if (!window.__askjevLoaded) {
         resolve(v);
       };
       const timer = window.setTimeout(() => {
-        done({ ok: false, error: "jev_timeout — press Escape or Dismiss to browse" });
-      }, 8000);
+        done({ ok: false, error: guardJevTimeoutMessage() });
+      }, GUARD_JEV_TIMEOUT_MS);
       try {
         chrome.runtime.sendMessage({ type: "askjev.decide", state }, (resp) => {
           window.clearTimeout(timer);
@@ -308,7 +317,7 @@ if (!window.__askjevLoaded) {
   }
 
   function fireClick(el: Element): void {
-    passThroughUntil = Date.now() + 800;
+    passThroughUntil = passThroughUntilFrom("allow");
     busy = true;
     el.dispatchEvent(
       new MouseEvent("click", { bubbles: true, cancelable: true, view: window }),
@@ -330,7 +339,7 @@ if (!window.__askjevLoaded) {
     "click",
     (ev) => {
       void (async () => {
-        if (Date.now() < passThroughUntil) return;
+        if (isPassThroughActive(passThroughUntil)) return;
         if (busy) return;
         if (!settingsCache.enabled) return;
         if (hostAllowed(location.hostname)) return;

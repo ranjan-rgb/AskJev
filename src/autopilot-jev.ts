@@ -20,6 +20,45 @@ const ACTIONS: DomAction[] = [
   "BLOCKED",
 ];
 
+/**
+ * Post-process raw Jev Choice answers so multi-step goals do not stop early.
+ * Pure — unit-tested without network or a browser.
+ *
+ * Rules (v1.5.3+):
+ * - Step 1 DONE → force CLICK if a target exists, else SCROLL_DOWN (need navigation).
+ * - DONE + targetId → CLICK (model contradicted itself).
+ * - High goal_done with WAIT/BLOCKED → DONE; keep explicit DONE when goal_done is high.
+ */
+export function applyAutopilotGuards(input: {
+  action: DomAction;
+  targetId: number | null;
+  goalDone: number;
+  /** 1-based autopilot step — blocks premature DONE on step 1. */
+  step?: number;
+}): { action: DomAction; done: boolean } {
+  let action = input.action;
+  const targetId = input.targetId;
+  const goalDone = input.goalDone;
+
+  if (goalDone >= 0.92 && action === "DONE") {
+    /* keep DONE */
+  } else if (goalDone >= 0.92 && (action === "WAIT" || action === "BLOCKED")) {
+    action = "DONE";
+  } else if (action === "DONE" && targetId != null) {
+    // Model contradicted itself — has a target, so click it instead of stopping.
+    action = "CLICK";
+  } else if (goalDone >= 0.85 && action === "DONE" && targetId != null) {
+    action = "CLICK";
+  }
+
+  if ((input.step ?? 1) <= 1 && action === "DONE") {
+    if (targetId != null) action = "CLICK";
+    else action = "SCROLL_DOWN";
+  }
+
+  return { action, done: action === "DONE" };
+}
+
 export async function decideNextStep(input: {
   apiKey: string;
   state: string;
@@ -27,6 +66,7 @@ export async function decideNextStep(input: {
   model?: string;
   /** 1-based autopilot step — used to block premature DONE on step 1. */
   step?: number;
+  fetchImpl?: typeof fetch;
 }): Promise<AutopilotDecision> {
   const criteria: Record<string, string> = {
     CLICK: "Click a visible control to progress the goal",
@@ -41,7 +81,9 @@ export async function decideNextStep(input: {
 
   // Cap targets for Choice cardinality
   const targets = input.elements.slice(0, 60);
-  const targetCriteria: Record<string, string> = { none: "No element needed (scroll/wait/done/blocked)" };
+  const targetCriteria: Record<string, string> = {
+    none: "No element needed (scroll/wait/done/blocked)",
+  };
   for (const e of targets) {
     targetCriteria[`e${e.id}`] =
       `#${e.id} ${e.tag} "${e.name || e.value || e.href || e.type}"`;
@@ -76,7 +118,8 @@ export async function decideNextStep(input: {
     },
   };
 
-  const res = await fetch(SYSTEM_ONE_URL, {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const res = await fetchImpl(SYSTEM_ONE_URL, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${input.apiKey.trim()}`,
@@ -106,29 +149,18 @@ export async function decideNextStep(input: {
   const irreversible = Number(a.irreversible?.noul ?? 0);
   const goalDone = Number(a.goal_done?.noul ?? 0);
 
-  // Do not abort on step-1 "already done" when Jev also picked a clickable target.
-  // Premature DONE was stopping goals like "check my followers" on the X home feed.
-  if (goalDone >= 0.92 && action === "DONE") {
-    /* keep DONE */
-  } else if (goalDone >= 0.92 && (action === "WAIT" || action === "BLOCKED")) {
-    action = "DONE";
-  } else if (action === "DONE" && targetId != null) {
-    // Model contradicted itself — has a target, so click it instead of stopping.
-    action = "CLICK";
-  } else if (goalDone >= 0.85 && action === "DONE" && targetId != null) {
-    action = "CLICK";
-  }
-
-  if ((input.step ?? 1) <= 1 && action === "DONE") {
-    if (targetId != null) action = "CLICK";
-    else action = "SCROLL_DOWN";
-  }
-
-  return {
+  const guarded = applyAutopilotGuards({
     action,
     targetId,
+    goalDone,
+    step: input.step,
+  });
+
+  return {
+    action: guarded.action,
+    targetId,
     confidence: Number(a.action?.confidence ?? 0),
-    done: action === "DONE",
+    done: guarded.done,
     irreversible,
   };
 }

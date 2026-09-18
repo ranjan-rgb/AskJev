@@ -202,12 +202,15 @@ export class BridgeServer {
     }
     if (!this.extension || this.extension.readyState !== WebSocket.OPEN) {
       throw new BridgeError(
-        "bridge_offline",
-        "AskJev extension is not connected — enable Agent Bridge in Options",
+        "not_paired",
+        "AskJev extension is not paired (no WebSocket from Chrome). Enable Agent Bridge / Auto-connect in Options and keep Chrome open.",
       );
     }
     if (!this.paired) {
-      throw new BridgeError("not_paired", "extension has not completed hello");
+      throw new BridgeError(
+        "not_paired",
+        "AskJev extension connected but hello incomplete — regenerate pairing token via Auto-connect.",
+      );
     }
 
     const id = `rpc_${++this.rpcSeq}_${Date.now()}`;
