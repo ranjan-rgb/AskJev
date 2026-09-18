@@ -2,34 +2,92 @@
  * One-click connect helpers: Claude Desktop / Cursor MCP JSON + OS installer scripts.
  * Claude launches `npx -y askjev-mcp` over stdio — there is no pasteable URL.
  * The only network path is localhost ws://127.0.0.1:PORT (mcp ↔ extension).
+ * When Options has a TypeSafe apiKey, it is written into mcpServers.askjev.env
+ * as ASKJEV_API_KEY + TYPESAFE_API_KEY so CDP Autopilot can call System One.
  */
 
 /** Prefer public npm; GitHub Release tarball is the no-registry fallback. */
 export const ASKJEV_MCP_TGZ =
-  "https://github.com/ranjan2829/AskJev/releases/download/v1.5.0/askjev-mcp-1.5.0.tgz";
+  "https://github.com/ranjan2829/AskJev/releases/download/v1.7.0/askjev-mcp-1.7.0.tgz";
+
+/** Default Brave binary preference for ASKJEV_BROWSER_BIN (macOS first). */
+export function preferredBraveBin(
+  platform?: "mac" | "win" | "linux" | string,
+): string {
+  const p = (platform || "mac").toLowerCase();
+  if (p.startsWith("win")) {
+    return "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe";
+  }
+  if (p.startsWith("linux")) {
+    return "/usr/bin/brave-browser";
+  }
+  return "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
+}
+
+export type McpConnectOpts = {
+  token: string;
+  port: number;
+  source?: "npm" | "github";
+  /** TypeSafe / AskJev API key from Options — written into MCP env when present. */
+  apiKey?: string;
+  /** Override browser binary; defaults to Brave preference when apiKey is set (CDP mode). */
+  browserBin?: string;
+  platform?: "mac" | "win" | "linux" | string;
+};
+
+export function buildMcpServerEnv(opts: {
+  token: string;
+  port: number;
+  apiKey?: string;
+  browserBin?: string;
+  platform?: string;
+}): Record<string, string> {
+  const env: Record<string, string> = {
+    ASKJEV_TOKEN: opts.token,
+    ASKJEV_PORT: String(opts.port),
+  };
+  const key = (opts.apiKey || "").trim();
+  if (key) {
+    env.ASKJEV_API_KEY = key;
+    env.TYPESAFE_API_KEY = key;
+    env.ASKJEV_MODE = "cdp";
+    env.ASKJEV_BROWSER_BIN =
+      (opts.browserBin || "").trim() || preferredBraveBin(opts.platform);
+  }
+  return env;
+}
 
 export function buildMcpServerEntry(
-  token: string,
-  port: number,
+  tokenOrOpts: string | McpConnectOpts,
+  port?: number,
   source: "npm" | "github" = "npm",
 ): Record<string, unknown> {
-  const pkg = source === "github" ? ASKJEV_MCP_TGZ : "askjev-mcp";
+  const opts: McpConnectOpts =
+    typeof tokenOrOpts === "string"
+      ? { token: tokenOrOpts, port: port ?? 17373, source }
+      : { source: "npm", ...tokenOrOpts };
+
+  const pkg = opts.source === "github" ? ASKJEV_MCP_TGZ : "askjev-mcp";
   return {
     command: "npx",
     args: ["-y", pkg],
-    env: {
-      ASKJEV_TOKEN: token,
-      ASKJEV_PORT: String(port),
-    },
+    env: buildMcpServerEnv(opts),
   };
 }
 
-/** Claude Desktop / Cursor mcpServers block with token filled in. */
-export function buildClientMcpConfig(token: string, port: number): string {
+/** Claude Desktop / Cursor mcpServers block with token (+ optional API key) filled in. */
+export function buildClientMcpConfig(
+  tokenOrOpts: string | McpConnectOpts,
+  port?: number,
+): string {
+  const opts: McpConnectOpts =
+    typeof tokenOrOpts === "string"
+      ? { token: tokenOrOpts, port: port ?? 17373 }
+      : tokenOrOpts;
   return JSON.stringify(
     {
       mcpServers: {
-        askjev: buildMcpServerEntry(token, port),
+        askjev: buildMcpServerEntry(opts),
       },
     },
     null,
@@ -41,16 +99,19 @@ function pyStringLiteral(s: string): string {
   return JSON.stringify(s);
 }
 
-/** Shared Python merge snippet (token/port injected as Python literals). */
-function pythonMergeScript(token: string, port: number): string {
+function buildPythonMergeScript(opts: McpConnectOpts): string {
+  const env = buildMcpServerEnv(opts);
+  const envLines = Object.entries(env)
+    .map(([k, v]) => `  ${pyStringLiteral(k)}: ${pyStringLiteral(v)},`)
+    .join("\n");
   return `import json, os, sys
 path = sys.argv[1]
-token = ${pyStringLiteral(token)}
-port = ${pyStringLiteral(String(port))}
 entry = {
   "command": "npx",
   "args": ["-y", "askjev-mcp"],
-  "env": {"ASKJEV_TOKEN": token, "ASKJEV_PORT": port},
+  "env": {
+${envLines}
+  },
 }
 data = {}
 if os.path.isfile(path):
@@ -71,18 +132,24 @@ with open(path, "w", encoding="utf-8") as f:
     f.write("\\n")
 print("Wrote askjev into:", path)
 print("Restart Claude Desktop — Claude starts the bridge for you.")
-print("No URL to paste. Local ws://127.0.0.1:%s is automatic." % port)
+print("No URL to paste. Local ws://127.0.0.1:%s is automatic." % entry["env"].get("ASKJEV_PORT", "17373"))
 `;
 }
 
 function toBase64Utf8(text: string): string {
-  // Token/config are ASCII-safe; encodeURIComponent covers any edge cases.
   return btoa(unescape(encodeURIComponent(text)));
 }
 
 /** macOS .command — merges askjev into claude_desktop_config.json */
-export function buildClaudeMacCommand(token: string, port: number): string {
-  const py = pythonMergeScript(token, port);
+export function buildClaudeMacCommand(
+  tokenOrOpts: string | McpConnectOpts,
+  port?: number,
+): string {
+  const opts: McpConnectOpts =
+    typeof tokenOrOpts === "string"
+      ? { token: tokenOrOpts, port: port ?? 17373, platform: "mac" }
+      : { platform: "mac", ...tokenOrOpts };
+  const py = buildPythonMergeScript(opts);
   return `#!/bin/bash
 # AskJev — one-click Claude Desktop connect
 # Claude starts the bridge for you (npx -y askjev-mcp). No URL to paste.
@@ -98,8 +165,15 @@ read -r -p "Press Enter to close…" _
 }
 
 /** Linux .sh — merges askjev into ~/.config/Claude/claude_desktop_config.json */
-export function buildClaudeLinuxSh(token: string, port: number): string {
-  const py = pythonMergeScript(token, port);
+export function buildClaudeLinuxSh(
+  tokenOrOpts: string | McpConnectOpts,
+  port?: number,
+): string {
+  const opts: McpConnectOpts =
+    typeof tokenOrOpts === "string"
+      ? { token: tokenOrOpts, port: port ?? 17373, platform: "linux" }
+      : { platform: "linux", ...tokenOrOpts };
+  const py = buildPythonMergeScript(opts);
   return `#!/usr/bin/env bash
 # AskJev — one-click Claude Desktop connect (Linux)
 # Claude starts the bridge for you (npx -y askjev-mcp). No URL to paste.
@@ -114,8 +188,15 @@ echo "Done. Quit and reopen Claude Desktop."
 }
 
 /** Windows .bat — merges askjev into %APPDATA%\\Claude\\claude_desktop_config.json */
-export function buildClaudeWinBat(token: string, port: number): string {
-  const b64 = toBase64Utf8(pythonMergeScript(token, port));
+export function buildClaudeWinBat(
+  tokenOrOpts: string | McpConnectOpts,
+  port?: number,
+): string {
+  const opts: McpConnectOpts =
+    typeof tokenOrOpts === "string"
+      ? { token: tokenOrOpts, port: port ?? 17373, platform: "win" }
+      : { platform: "win", ...tokenOrOpts };
+  const b64 = toBase64Utf8(buildPythonMergeScript(opts));
   return `@echo off
 REM AskJev — one-click Claude Desktop connect
 REM Claude starts the bridge for you (npx -y askjev-mcp). No URL to paste.
