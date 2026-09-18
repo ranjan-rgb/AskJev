@@ -19,11 +19,11 @@ Connect **Claude Desktop** or **Cursor** to the AskJev browser extension so an a
 **Preferred.** No daily terminal. No editing JSON by hand.
 
 1. Open AskJev **Options** → **Auto-connect** (creates a pairing token + arms the bridge).
-2. In Claude Desktop: **Settings → Extensions → Advanced → Install Extension…** → pick `askjev-1.5.5.mcpb` from the [GitHub release](https://github.com/ranjan2829/AskJev/releases).
+2. In Claude Desktop: **Settings → Extensions → Advanced → Install Extension…** → pick `askjev-1.5.6.mcpb` from the [GitHub release](https://github.com/ranjan2829/AskJev/releases).
 3. When Claude prompts for config, paste the **pairing token** from AskJev Options → Advanced (and confirm port `17373` if asked).
 4. Restart Claude Desktop if needed. AskJev popup shows **Connected** / paired. Tools appear as `askjev_*`.
 
-> Download the `.mcpb` from the latest release assets (`askjev-1.5.5.mcpb`). Keep the Chrome extension loaded and the bridge armed.
+> Download the `.mcpb` from the latest release assets (`askjev-1.5.6.mcpb`). Keep the Chrome extension loaded and the bridge armed.
 
 ---
 
@@ -123,7 +123,7 @@ Roles on the wire: `extension` (one Chrome client), `controller` (many peer MCP 
 | `askjev_act` | B | One DOM action (rate-limited 30/min) |
 | `askjev_list_tabs` | B | List open tabs |
 
-Structured error codes: `not_paired`, `bridge_offline`, `guard_blocked`, `missing_api_key`, `rate_limited`, `unauthorized`.
+Structured error codes: `not_paired`, `bridge_offline`, `guard_blocked`, `missing_api_key`, `rate_limited`, `unauthorized`, `timeout`. Tool errors may include a `hint` with fix steps. `askjev_status` reports `mode` (`listen`/`server` vs `attach`) and a `modeNote`.
 
 ## Wire protocol (extension ↔ bridge)
 
