@@ -46,7 +46,7 @@ function buildQuestions(sensitivity: Sensitivity) {
       instructions:
         "Would this click cause a lasting or hard-to-undo effect on any website — money movement, data loss, sending a message, granting access, publishing, deploying, or changing account/security settings?",
       criteria: {
-        true: "Hard to undo on any site: pay, delete, send, publish, deploy, revoke, grant access, transfer",
+        true: "Hard to undo on any site: pay, delete, send, publish, deploy, revoke, grant access, transfer, or end the session — sign out, log out, switch account, disconnect an app, clear history or site data",
         false: "Reversible browsing or navigation with no lasting side effect",
       },
     },

@@ -85,10 +85,22 @@ export function isProfileLocked(dir: string): boolean {
   }
 }
 
-/** Opt out of the user's own profile with ASKJEV_OWN_PROFILE=1. */
-function wantsSeparateProfile(env: NodeJS.ProcessEnv = process.env): boolean {
+/**
+ * Opt IN to driving the user's real browser profile with ASKJEV_USE_MY_PROFILE=1.
+ *
+ * This is opt-in because it cost a real user their X session. Autopilot clicked
+ * a control at 0.25 confidence and hit Log out; Guard scored it 0.05 and allowed
+ * it, because signing out is not "pay, delete, send, publish, deploy" — the
+ * definition irreversible has always used. On a scratch profile that is a
+ * non-event. On the profile holding every session the user owns, a single
+ * mis-click destroys state they cannot get back from us.
+ *
+ * Until Guard scores loss of account state, the real profile is not a safe
+ * default, however much better it feels when it works.
+ */
+function wantsRealProfile(env: NodeJS.ProcessEnv = process.env): boolean {
   return ["1", "true", "yes"].includes(
-    String(env.ASKJEV_OWN_PROFILE || "").trim().toLowerCase(),
+    String(env.ASKJEV_USE_MY_PROFILE || "").trim().toLowerCase(),
   );
 }
 
@@ -101,14 +113,10 @@ export type ProfileChoice = {
 /**
  * Pick the profile to drive.
  *
- * Default is the user's OWN browser profile, because the whole point is that
- * "open x.com and check my mentions" should find them logged in. A throwaway
- * profile silently lands on a sign-in wall instead, which reads as AskJev being
- * broken.
- *
- * If their browser is running it holds the profile lock, and we refuse rather
- * than quietly switching to an empty profile — being logged out for no stated
- * reason is exactly the confusing failure this is meant to remove.
+ * Defaults to AskJev's own persistent profile. It still remembers logins across
+ * restarts — sign in once per site and it sticks — but a wrong click can only
+ * ever cost the sessions the user chose to put there, not every session they
+ * own. See wantsRealProfile for why the real profile is not the default.
  */
 export function chooseProfile(
   browserBin: string | null,
@@ -117,16 +125,16 @@ export function chooseProfile(
 ): ProfileChoice {
   const custom = (env.ASKJEV_PROFILE_DIR || "").trim();
   if (custom) return { dir: custom, isReal: false };
-  if (wantsSeparateProfile(env)) return { dir: ownProfileDir(), isReal: false };
+  if (!wantsRealProfile(env)) return { dir: ownProfileDir(), isReal: false };
 
   const real = realProfileDir(browserBin, platform, env);
   if (real && existsSync(real)) {
     if (isProfileLocked(real)) {
       throw new Error(
-        "AskJev wants to use your own browser profile so you stay signed in, " +
+        "ASKJEV_USE_MY_PROFILE=1 asks AskJev to drive your real browser profile, " +
           "but your browser is open and holding it. Quit Brave/Chrome completely " +
-          "(Cmd+Q), then ask again — AskJev will reopen it for you. " +
-          "To use a separate signed-out profile instead, set ASKJEV_OWN_PROFILE=1.",
+          "(Cmd+Q), then ask again. Note that Autopilot can then click things that " +
+          "sign you out of your real accounts — unset it to use AskJev's own profile.",
       );
     }
     return { dir: real, isReal: true };

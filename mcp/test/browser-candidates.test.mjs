@@ -104,17 +104,18 @@ describe("profile selection", () => {
     assert.equal(c.isReal, false);
   });
 
-  it("opts out to a separate profile with ASKJEV_OWN_PROFILE", () => {
-    const c = chooseProfile(brave, { ASKJEV_OWN_PROFILE: "1" }, "darwin");
+  it("defaults to AskJev's own profile, never the user's real one", () => {
+    // A wrong click must not be able to sign the user out of their real
+    // accounts. Opting in is explicit.
+    const c = chooseProfile(brave, {}, "darwin");
     assert.equal(c.dir, ownProfileDir());
     assert.equal(c.isReal, false);
   });
 
-  it("falls back to its own profile when the real one does not exist", () => {
-    // linux paths do not exist on the CI/mac box running this
-    const c = chooseProfile(brave, {}, "linux");
+  it("uses the real profile only with ASKJEV_USE_MY_PROFILE", () => {
+    const c = chooseProfile(brave, { ASKJEV_USE_MY_PROFILE: "1" }, "linux");
+    // linux path does not exist here, so it falls back — but the opt-in is read
     assert.equal(c.isReal, false);
-    assert.equal(c.dir, ownProfileDir());
   });
 
   it("reports a profile as unlocked when there is no SingletonLock", () => {

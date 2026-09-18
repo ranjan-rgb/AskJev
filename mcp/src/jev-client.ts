@@ -309,9 +309,11 @@ export async function decideNextStep(input: {
         instructions:
           "Would executing this next action cause a lasting, hard-to-undo effect?",
         criteria: {
-          true: "Moves money, deletes data, sends or publishes a message, deploys, grants or revokes access, or changes security settings",
+          true: "Moves money, deletes data, sends or publishes a message, deploys, grants or revokes access, changes security settings, or ends the session — signing out, switching account, disconnecting an app, clearing history or site data",
           false:
             "Ordinary browsing, navigation, searching, scrolling, or filling a field that is not yet submitted",
+          examples:
+            "Sign out and Log out count as true: the user cannot get the session back from this browser, and everything after it fails.",
         },
       },
       goal_done: {
