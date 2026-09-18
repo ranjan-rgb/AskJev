@@ -118,8 +118,10 @@ export function applyAutopilotGuards(input: {
     action = "CLICK";
   }
 
-  // A landing page is never "done" on the first look.
-  if (step <= 1 && action === "DONE" && goalDone < 0.92) {
+  // A landing page is never "done" on the first look, however sure Jev is:
+  // step 1 is the freshly navigated page, and a DONE here ends the run having
+  // achieved nothing. A named target is Jev contradicting itself — click it.
+  if (step <= 1 && action === "DONE") {
     action = targetId != null ? "CLICK" : "SCROLL_DOWN";
   }
 

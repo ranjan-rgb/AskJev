@@ -220,6 +220,18 @@ async function syncBridge(): Promise<void> {
 /** ---- Autopilot ---- */
 let autopilotRunning = false;
 let lastAutopilotStatus = "idle";
+/**
+ * True once the run has set a status describing how it ENDED (done, blocked,
+ * guard stop, error). Checking `lastAutopilotStatus === "running"` did not work:
+ * every step overwrites the status with its own line, so the reset never fired
+ * and a finished run kept reporting its last step forever.
+ */
+let autopilotStatusFinal = false;
+
+function setFinalAutopilotStatus(status: string): void {
+  setAutopilotStatus(status);
+  autopilotStatusFinal = true;
+}
 
 async function getActiveTabId(): Promise<number | undefined> {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -239,8 +251,13 @@ async function runAutopilot(goal: string, typeText?: string): Promise<void> {
     return;
   }
   autopilotRunning = true;
+  autopilotStatusFinal = false;
   setAutopilotStatus("running");
   const maxSteps = 20;
+  // One-shot: the text belongs to the first TYPE_TEXT step only. Recomputing it
+  // every step retyped the same string into every field of a multi-field form.
+  let pendingText: string | undefined =
+    (typeText && typeText.trim()) || extractQuotedText(goal) || undefined;
   const pinnedTabId = await getActiveTabId();
   if (pinnedTabId == null) {
     setAutopilotStatus("no active tab — click the page tab, then Run");
@@ -264,14 +281,14 @@ async function runAutopilot(goal: string, typeText?: string): Promise<void> {
       const line = `snapshot failed: ${(e as Error).message || "no content script — refresh the page"}`;
       broadcast({ type: "askjev.autopilot.log", line });
       bridgeClient.emit("autopilot_log", { line });
-      setAutopilotStatus("refresh the page, then Run again");
+      setFinalAutopilotStatus("refresh the page, then Run again");
       break;
     }
     if (!snap?.ok) {
       const line = `snapshot failed: ${snap?.error || "unknown"}`;
       broadcast({ type: "askjev.autopilot.log", line });
       bridgeClient.emit("autopilot_log", { line });
-      setAutopilotStatus("snapshot failed");
+      setFinalAutopilotStatus("snapshot failed");
       break;
     }
 
@@ -298,7 +315,7 @@ async function runAutopilot(goal: string, typeText?: string): Promise<void> {
       const line = `jev error: ${(e as Error).message}`;
       broadcast({ type: "askjev.autopilot.log", line });
       bridgeClient.emit("autopilot_log", { line });
-      setAutopilotStatus("jev error — check API key / network");
+      setFinalAutopilotStatus("jev error — check API key / network");
       break;
     }
 
@@ -307,26 +324,38 @@ async function runAutopilot(goal: string, typeText?: string): Promise<void> {
     bridgeClient.emit("autopilot_log", { line });
 
     if (decision.done || decision.action === "DONE") {
-      setAutopilotStatus("done");
+      setFinalAutopilotStatus("done");
       await bumpStat("proceeded");
       break;
     }
     if (decision.action === "BLOCKED") {
-      setAutopilotStatus("blocked by jev");
+      setFinalAutopilotStatus("blocked by jev");
       await bumpStat("blocked");
       break;
     }
 
     // Guard: irreversible actions need explicit confirm via sidepanel status
     if (decision.irreversible >= 0.65) {
-      setAutopilotStatus(
+      setFinalAutopilotStatus(
         `guard: irreversible (${decision.irreversible.toFixed(2)}) — stopped. Use Guard overlay or lower risk goal.`,
       );
       await bumpStat("blocked");
       break;
     }
 
-    const text = typeText || extractQuotedText(goal) || undefined;
+    let text: string | undefined;
+    if (decision.action === "TYPE_TEXT") {
+      text = pendingText;
+      if (!text) {
+        // execute() would fill("") and wipe whatever is already in the field.
+        const line = `step ${step}: no text left for TYPE_TEXT — skipped`;
+        broadcast({ type: "askjev.autopilot.log", line });
+        bridgeClient.emit("autopilot_log", { line });
+        await new Promise((r) => setTimeout(r, 700));
+        continue;
+      }
+      pendingText = undefined;
+    }
     const exec = await chrome.tabs.sendMessage(tabId, {
       type: "askjev.dom.execute",
       action: decision.action,
@@ -339,7 +368,7 @@ async function runAutopilot(goal: string, typeText?: string): Promise<void> {
     await new Promise((r) => setTimeout(r, 700));
   }
   autopilotRunning = false;
-  if (lastAutopilotStatus === "running") setAutopilotStatus("idle");
+  if (!autopilotStatusFinal) setAutopilotStatus("idle");
   else broadcast({ type: "askjev.autopilot.status", status: lastAutopilotStatus });
 }
 

@@ -86,14 +86,29 @@ describe("applyAutopilotGuards", () => {
     assert.equal(noTarget.action, "SCROLL_DOWN");
   });
 
-  it("still allows step 1 DONE when goal_done is overwhelming", () => {
-    const r = applyAutopilotGuards({
-      action: "DONE",
-      targetId: null,
-      goalDone: 0.99,
-      step: 1,
-    });
-    assert.equal(r.action, "DONE");
+  it("never finishes on step 1 even when goal_done is overwhelming", () => {
+    // Step 1 is the freshly navigated page. A DONE here ends the run having
+    // achieved nothing, which is the failure this rule exists to prevent — so
+    // the step-1 rule outranks a high goal_done, and a named target (Jev
+    // contradicting itself) is clicked rather than trusted.
+    assert.equal(
+      applyAutopilotGuards({
+        action: "DONE",
+        targetId: null,
+        goalDone: 0.99,
+        step: 1,
+      }).action,
+      "SCROLL_DOWN",
+    );
+    assert.equal(
+      applyAutopilotGuards({
+        action: "DONE",
+        targetId: 7,
+        goalDone: 0.99,
+        step: 1,
+      }).action,
+      "CLICK",
+    );
   });
 });
 

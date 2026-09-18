@@ -37,23 +37,23 @@ export function applyAutopilotGuards(input: {
   step?: number;
 }): { action: DomAction; done: boolean } {
   let action = input.action;
-  const targetId = input.targetId;
-  const goalDone = input.goalDone;
+  const { targetId, goalDone } = input;
+  const step = input.step ?? 1;
 
-  if (goalDone >= 0.92 && action === "DONE") {
-    /* keep DONE */
-  } else if (goalDone >= 0.92 && (action === "WAIT" || action === "BLOCKED")) {
-    action = "DONE";
+  // Ordered most-specific first so every branch stays reachable. Kept in step
+  // with the MCP twin in mcp/src/jev-client.ts — the two must not drift.
+  if (goalDone >= 0.92) {
+    if (action === "WAIT" || action === "BLOCKED") action = "DONE";
   } else if (action === "DONE" && targetId != null) {
     // Model contradicted itself — has a target, so click it instead of stopping.
     action = "CLICK";
-  } else if (goalDone >= 0.85 && action === "DONE" && targetId != null) {
-    action = "CLICK";
   }
 
-  if ((input.step ?? 1) <= 1 && action === "DONE") {
-    if (targetId != null) action = "CLICK";
-    else action = "SCROLL_DOWN";
+  // A landing page is never "done" on the first look, however sure Jev is:
+  // step 1 is the freshly navigated page, and a DONE here ends the run having
+  // achieved nothing. A named target is Jev contradicting itself — click it.
+  if (step <= 1 && action === "DONE") {
+    action = targetId != null ? "CLICK" : "SCROLL_DOWN";
   }
 
   return { action, done: action === "DONE" };
