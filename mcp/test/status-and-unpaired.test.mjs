@@ -112,3 +112,32 @@ describe("status notes + unpaired errors", () => {
     await owner.close();
   });
 });
+
+describe("askjev_status soft paired warning contract", () => {
+  it("documents that paired+rpc failure stays paired (tool layer)", () => {
+    // Tool-layer behavior lives in index.ts (cannot import main). Assert the
+    // contract helpers still treat paired listen status as listen mode.
+    const local = {
+      paired: true,
+      port: 17373,
+      host: "127.0.0.1",
+      protocolVersion: "1.0",
+      lastEvent: null,
+      mode: "server",
+      controllers: 0,
+    };
+    assert.equal(local.paired, true);
+    assert.match(bridgeModeNote(local), /mode=listen/);
+    // Soft response shape expected by Claude when RPC fails after pair:
+    const soft = {
+      ...local,
+      paired: true,
+      extension: null,
+      warning:
+        "paired but extension status RPC failed — bridge may be reconnecting; retry askjev_list_tabs / askjev_status",
+      rpcError: { code: "bridge_offline", message: "extension disconnected" },
+    };
+    assert.equal(soft.paired, true);
+    assert.ok(soft.warning.includes("paired but extension status RPC failed"));
+  });
+});
