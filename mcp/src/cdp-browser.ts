@@ -240,3 +240,189 @@ export async function listCdpPages(): Promise<
   }
   return out;
 }
+
+export type SnapshotElement = {
+  id: number;
+  tag: string;
+  role: string;
+  name: string;
+  type?: string;
+  href?: string;
+  value?: string;
+};
+
+export async function navigate(url: string): Promise<{ url: string; title: string }> {
+  const { page } = await activePage();
+  let target = url.trim();
+  if (!/^https?:\/\//i.test(target)) target = `https://${target}`;
+  await page.goto(target, { waitUntil: "domcontentloaded", timeout: 45_000 });
+  return { url: page.url(), title: await page.title().catch(() => "") };
+}
+
+export async function snapshot(goal?: string): Promise<{
+  url: string;
+  title: string;
+  goal?: string;
+  elements: SnapshotElement[];
+  state: string;
+}> {
+  const { page } = await activePage();
+  const elements = (await page.evaluate(`(() => {
+    const out = [];
+    const nodes = Array.from(
+      document.querySelectorAll(
+        "a, button, input, textarea, select, [role='button'], [role='link'], [contenteditable='true']",
+      ),
+    ).slice(0, 80);
+    let id = 1;
+    for (const el of nodes) {
+      const html = el;
+      if (!(html.offsetWidth || html.offsetHeight || html.getClientRects().length)) continue;
+      const tag = html.tagName.toLowerCase();
+      const role =
+        html.getAttribute("role") ||
+        (tag === "a" ? "link" : tag === "button" ? "button" : tag);
+      const name = (
+        html.innerText ||
+        html.getAttribute("aria-label") ||
+        html.getAttribute("placeholder") ||
+        html.getAttribute("name") ||
+        html.getAttribute("title") ||
+        ""
+      )
+        .trim()
+        .slice(0, 120);
+      const item = { id: id++, tag, role, name };
+      if (tag === "input") item.type = html.type || "text";
+      if (tag === "a") item.href = html.href;
+      if ("value" in html) item.value = String(html.value || "").slice(0, 80);
+      out.push(item);
+      html.setAttribute("data-askjev-id", String(item.id));
+    }
+    return out;
+  })()`)) as SnapshotElement[];
+  const title = await page.title().catch(() => "");
+  const url = page.url();
+  const state = [
+    `url=${url}`,
+    `title=${title}`,
+    goal ? `goal=${goal}` : "",
+    `elements=${elements.length}`,
+    ...elements.slice(0, 40).map(
+      (e) => `#${e.id} ${e.role} "${e.name}"${e.href ? ` ${e.href}` : ""}`,
+    ),
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return { url, title, goal, elements, state };
+}
+
+export type ActAction =
+  | "CLICK"
+  | "TYPE_TEXT"
+  | "SELECT"
+  | "SCROLL_DOWN"
+  | "SCROLL_UP"
+  | "WAIT"
+  | "PRESS";
+
+export async function act(opts: {
+  action: ActAction;
+  targetId?: number;
+  text?: string;
+  key?: string;
+}): Promise<{ ok: true; detail: string; url: string; title: string }> {
+  const { page } = await activePage();
+  const { action, targetId, text, key } = opts;
+  let detail = String(action);
+
+  if (action === "SCROLL_DOWN") {
+    await page.mouse.wheel(0, 900);
+    detail = "scrolled down";
+  } else if (action === "SCROLL_UP") {
+    await page.mouse.wheel(0, -900);
+    detail = "scrolled up";
+  } else if (action === "WAIT") {
+    await new Promise((r) => setTimeout(r, 1000));
+    detail = "waited 1s";
+  } else if (action === "PRESS") {
+    await page.keyboard.press((key || text || "Enter") as "Enter");
+    detail = `pressed ${key || text || "Enter"}`;
+  } else if (action === "CLICK" || action === "TYPE_TEXT" || action === "SELECT") {
+    if (targetId == null) throw new Error("targetId required for " + action);
+    const sel = `[data-askjev-id="${targetId}"]`;
+    const loc = page.locator(sel).first();
+    if (action === "CLICK") {
+      await loc.click({ timeout: 10_000 });
+      detail = `clicked #${targetId}`;
+    } else if (action === "TYPE_TEXT") {
+      await loc.click({ timeout: 10_000 });
+      await loc.fill(text || "", { timeout: 10_000 });
+      detail = `typed into #${targetId}`;
+    } else {
+      await loc.selectOption(text || "", { timeout: 10_000 }).catch(async () => {
+        await loc.fill(text || "");
+      });
+      detail = `selected on #${targetId}`;
+    }
+  } else {
+    throw new Error("unknown action " + action);
+  }
+
+  return {
+    ok: true,
+    detail,
+    url: page.url(),
+    title: await page.title().catch(() => ""),
+  };
+}
+
+export async function clickText(text: string): Promise<{ detail: string }> {
+  const { page } = await activePage();
+  const t = text.trim();
+  await page.getByRole("button", { name: t }).first().click({ timeout: 8_000 }).catch(async () => {
+    await page.getByRole("link", { name: t }).first().click({ timeout: 8_000 }).catch(async () => {
+      await page.getByText(t, { exact: false }).first().click({ timeout: 8_000 });
+    });
+  });
+  return { detail: `clicked text "${t}"` };
+}
+
+export async function typeIntoFocused(text: string): Promise<{ detail: string }> {
+  const { page } = await activePage();
+  await page.keyboard.type(text, { delay: 20 });
+  return { detail: `typed ${text.length} chars` };
+}
+
+export async function goBack(): Promise<{ url: string }> {
+  const { page } = await activePage();
+  await page.goBack({ waitUntil: "domcontentloaded" }).catch(() => undefined);
+  return { url: page.url() };
+}
+
+export async function goForward(): Promise<{ url: string }> {
+  const { page } = await activePage();
+  await page.goForward({ waitUntil: "domcontentloaded" }).catch(() => undefined);
+  return { url: page.url() };
+}
+
+export async function pageContent(): Promise<{
+  url: string;
+  title: string;
+  text: string;
+}> {
+  const { page } = await activePage();
+  const text = String(
+    await page.evaluate(`document.body && document.body.innerText ? document.body.innerText.slice(0, 12000) : ""`),
+  );
+  return {
+    url: page.url(),
+    title: await page.title().catch(() => ""),
+    text,
+  };
+}
+
+export async function screenshotPng(): Promise<Buffer> {
+  const { page } = await activePage();
+  return await page.screenshot({ type: "png", fullPage: false });
+}
