@@ -3,7 +3,8 @@
 export const PROTOCOL_VERSION = "1.0";
 export const DEFAULT_BRIDGE_PORT = 17373;
 
-export type BridgeRole = "extension" | "mcp";
+/** "extension" = Chrome client (one). "mcp" = bridge owner hello reply. "controller" = peer MCP (many). */
+export type BridgeRole = "extension" | "mcp" | "controller";
 
 export interface HelloMessage {
   type: "hello";
@@ -67,3 +68,6 @@ export type RpcMethod =
   | "snapshot"
   | "act"
   | "list_tabs";
+
+/** Synthetic RPC answered by the bridge owner (not forwarded to the extension). */
+export const BRIDGE_STATUS_METHOD = "__bridge_status";
