@@ -4,6 +4,10 @@ import {
   SNAPSHOT_ELEMENT_LIMIT,
   browserCandidates,
   cdpPort,
+  chooseProfile,
+  isProfileLocked,
+  ownProfileDir,
+  realProfileDir,
 } from "../dist/cdp-browser.js";
 
 describe("browserCandidates", () => {
@@ -73,5 +77,70 @@ describe("cdpPort", () => {
     assert.equal(cdpPort("http://127.0.0.1"), 9222);
     assert.equal(cdpPort("not a url"), 9222);
     assert.equal(cdpPort(""), 9222);
+  });
+});
+
+describe("profile selection", () => {
+  const brave = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
+  const chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+
+  it("maps the binary to that browser's real profile per platform", () => {
+    assert.match(realProfileDir(brave, "darwin", {}), /BraveSoftware\/Brave-Browser$/);
+    assert.match(realProfileDir(chrome, "darwin", {}), /Google\/Chrome$/);
+    assert.match(
+      realProfileDir(brave, "win32", { LOCALAPPDATA: "C:\\U\\AppData\\Local" }),
+      /BraveSoftware.Brave-Browser.User Data$/,
+    );
+    assert.match(realProfileDir(brave, "linux", {}), /\.config\/BraveSoftware/);
+  });
+
+  it("returns null on Windows with no LOCALAPPDATA", () => {
+    assert.equal(realProfileDir(brave, "win32", {}), null);
+  });
+
+  it("honours an explicit ASKJEV_PROFILE_DIR", () => {
+    const c = chooseProfile(brave, { ASKJEV_PROFILE_DIR: "/tmp/p" }, "darwin");
+    assert.equal(c.dir, "/tmp/p");
+    assert.equal(c.isReal, false);
+  });
+
+  it("defaults to AskJev's own profile, never the user's real one", () => {
+    // A wrong click must not be able to sign the user out of their real
+    // accounts. Opting in is explicit.
+    const c = chooseProfile(brave, {}, "darwin");
+    assert.equal(c.dir, ownProfileDir());
+    assert.equal(c.isReal, false);
+  });
+
+  it("never returns the user's real profile, flag or no flag", () => {
+    // Launching a real Chromium profile via Playwright wipes its cookie store.
+    // There is deliberately no opt-in.
+    for (const env of [{}, { ASKJEV_USE_MY_PROFILE: "1" }, { ASKJEV_OWN_PROFILE: "0" }]) {
+      const c = chooseProfile(brave, env, "darwin");
+      assert.equal(c.isReal, false);
+      assert.equal(c.dir, ownProfileDir());
+    }
+  });
+
+  it("refuses an override aimed at the real profile", () => {
+    const real = realProfileDir(brave, "darwin", {});
+    assert.throws(
+      () => chooseProfile(brave, { ASKJEV_PROFILE_DIR: real }, "darwin"),
+      /will not open it|signing you out/,
+    );
+    // trailing slash must not sneak past the comparison
+    assert.throws(
+      () => chooseProfile(brave, { ASKJEV_PROFILE_DIR: real + "/" }, "darwin"),
+      /will not open it|signing you out/,
+    );
+  });
+
+  it("still allows a dedicated automation directory", () => {
+    const c = chooseProfile(brave, { ASKJEV_PROFILE_DIR: "/tmp/askjev-x" }, "darwin");
+    assert.equal(c.dir, "/tmp/askjev-x");
+  });
+
+  it("reports a profile as unlocked when there is no SingletonLock", () => {
+    assert.equal(isProfileLocked("/tmp/definitely-not-a-profile-dir"), false);
   });
 });
