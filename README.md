@@ -1,102 +1,96 @@
 # AskJev
 
-**Jev autopilot for any website — plus a guard on irreversible clicks.**  
-**Optional MCP agent bridge** so Claude Desktop, Cursor, or any MCP client can drive the browser safely.
+**Talk to Claude in plain English. AskJev drives Brave/Chrome. TypeSafe Jev decides on-page. Guard freezes irreversible clicks.**
 
-Production Chrome / Brave MV3 extension (TypeScript). Type a goal and Jev drives the page. High-impact clicks still get frozen and judged before they land. Agents connect over localhost with a pairing token — your TypeSafe key never leaves the extension.
+No shell. No CDP flags. No paste-JSON rituals. Install the extension, Auto-connect once, reopen Claude, and chat.
 
-Built for worldwide use: every site by default (`<all_urls>`), cheap System One decisions, typed DOM actions, human override. Not a Flights toy demo.
+Built with [TypeSafe System One](https://typesafe.ai) — page decisions use Jev (Noul / Choice / Score), **not** Claude as the planner.
 
-## What it is
+---
 
-| Mode | Where | What happens |
-|------|--------|--------------|
-| **Autopilot** | Side panel | You type a goal. AskJev snapshots interactive elements, asks Jev for the next action (`CLICK` / `TYPE_TEXT` / `SELECT` / `SCROLL_*` / `WAIT` / `DONE` / `BLOCKED`), executes it, repeats (max 20 steps). |
-| **Guard** | Every page | Risky clicks (pay, delete, send, publish, deploy, …) are held. Jev scores irreversible + risk and chooses `proceed` / `block` / `ask`. Overlay lets you confirm. Autopilot **stops** if the next step looks irreversible (≥ 0.65). |
-| **Agent bridge** | MCP + Options | Auto-connect arms the bridge. Claude/Cursor launch `npx -y askjev-mcp` for you (stdio). Local `ws://127.0.0.1:17373` is automatic. Same Guard on acts. |
+## Setup (phone-simple)
 
-Allowlist is the only opt-out. There is no AskJev backend.
+1. **Load the extension** — Chrome or Brave → Extensions → **Load unpacked** → select `extension/` (or install from the store when listed).
+2. **Options → paste your TypeSafe API key → Auto-connect** — downloads `AskJev-Connect-Claude.command` (mac) / `.bat` (Windows) / `.sh` (Linux).
+3. **Double-click the Connect script once** → **Quit & reopen Claude**.
+4. **Chat:** `open example.com and click More information`
 
-## Connect Claude / Cursor (no terminal)
+That’s it. Claude launches `askjev-mcp` for you. AskJev opens Brave/Chrome over CDP and runs Autopilot. Your API key goes only to `api.typesafe.ai`.
 
-**Preferred (Claude Desktop):** install `askjev-*.mcpb` from the GitHub release, then paste the pairing token from Options → Advanced.
+Get a key: [typesafe.ai](https://typesafe.ai) · Docs: [docs.typesafe.ai](https://docs.typesafe.ai/introduction)
 
-1. **Options → Auto-connect** (creates token, arms bridge, copies config)
-2. **Install `.mcpb`** *or* **Paste JSON** *or* **download** `AskJev-Connect-Claude.command` / `.bat` / `.sh` and run once
-3. **Restart Claude / Cursor** — they launch the bridge for you
+---
 
-There is **no URL to paste**. The only network path is local `ws://127.0.0.1` between askjev-mcp and the extension. Details: [docs/AGENT-BRIDGE.md](docs/AGENT-BRIDGE.md)
+## Demo (video / wow moment)
 
-## How AI connects
-
-**Page decisions** use **TypeSafe Jev** (System One) only — not Claude/ChatGPT as the decision model:
-
-```http
-POST https://api.typesafe.ai/v1/systemone
-Authorization: Bearer <your TypeSafe API key>
-```
-
-**Claude / Cursor** can be MCP *clients* of AskJev: they call tools; AskJev **auto-launches Brave/Chrome over CDP** and runs a **TypeSafe Jev Autopilot loop** (System One Noul/Choice/Score — not a Claude planner) for multi-step goals. A **TypeSafe API key is required** for multi-step `askjev_do` (set via Options → Auto-connect, which writes `ASKJEV_API_KEY` + `TYPESAFE_API_KEY` into Claude `mcpServers.askjev.env`). Your API key is sent only to `api.typesafe.ai`. The pairing token stays on localhost.
-
-Docs: [docs.typesafe.ai](https://docs.typesafe.ai/introduction) · Bridge: [docs/AGENT-BRIDGE.md](docs/AGENT-BRIDGE.md)
-
-## Setup
-
-```bash
-npm install && npm run build
-```
-
-1. Chrome or Brave → Extensions → **Load unpacked** → select `extension/`
-2. Options → paste your **TypeSafe** API key (required for multi-step Autopilot / `askjev_do`)
-3. Popup → **Open Autopilot** (or open the side panel)
-4. Optional Guard demo: `npm run demo` → open `http://localhost:8765` → click Pay / Delete / Send
-5. Optional agent bridge: Options → Auto-connect (see [docs/AGENT-BRIDGE.md](docs/AGENT-BRIDGE.md))
-
-## Project layout
+After setup, paste this into Claude:
 
 ```
-src/                 Extension TypeScript source
-  background.ts      Guard decide + Autopilot loop + bridge client
-  bridge.ts          Localhost WebSocket client (extension → mcp)
-  content.ts         Click gate + DOM snapshot/execute
-  autopilot-jev.ts   Jev next-step Choice
-  dom.ts             Interactive element snapshot + actions
-  sidepanel.ts       Autopilot UI
-  jev.ts             System One client (Guard)
-mcp/                 Publishable askjev-mcp (stdio MCP + WS server)
-extension/           Built MV3 package (load this)
-demo/                Local checkout page for Guard
-store/LISTING.md     Chrome Web Store copy draft
-docs/AGENT.md        Notes for agents extending AskJev
-docs/AGENT-BRIDGE.md Protocol, security, Claude/Cursor snippets
-docs/MCPB.md         Claude Desktop .mcpb packing + install
-mcpb/                Desktop Extension source (pack → .mcpb)
+Open https://news.ycombinator.com, open the top story, then go to https://www.wikipedia.org,
+search for "TypeSafe AI", open the first relevant result, scroll down twice, then open
+https://example.com and click More information. When you're done, tell me the page title
+on example.com and a one-line summary of what you saw on HN and Wikipedia. If anything
+looks irreversible (pay, delete, send, publish), stop and ask me first.
 ```
 
-## Build / ship
+Same text lives in [docs/DEMO-PROMPT.md](docs/DEMO-PROMPT.md).
 
-```bash
-npm run typecheck
-npm test               # extension zinc/HTML + mcp double-spawn
-npm run build          # → extension/ + mcp/dist
-npm run pack:chrome    # store/askjev-chrome-<ver>.zip
-npm run pack:mcpb      # store/askjev-<ver>.mcpb (Claude Desktop)
-npm run pack           # legacy zip via pack-extension.mjs
+Warm-up: `open example.com and click More information`
+
+---
+
+## How it works
+
+| Piece | Role |
+|-------|------|
+| **You ↔ Claude** | Natural language. Claude is the MCP *client* — it calls AskJev tools, it does **not** plan each click. |
+| **askjev-mcp** | MCP stdio server. Auto-launches Brave/Chrome over CDP and runs the Autopilot loop. |
+| **Brave / Chrome** | The browser you see. AskJev drives it. |
+| **TypeSafe Jev (System One)** | On-page decisions: next action, target, irreversible score, goal-done. |
+| **AskJev Guard** | Freezes pay / delete / send / publish / deploy-class clicks until you confirm. |
+
+```
+You → Claude (MCP client) → askjev-mcp (CDP) → Brave/Chrome
+                                    ↓
+                         TypeSafe Jev System One
 ```
 
-Claude Desktop one-click: [docs/MCPB.md](docs/MCPB.md).
+---
 
-Current version: **1.7.0**
+## What you get
 
-`askjev-mcp` is shippable on npm (`ranjan3129`) but is **not** published unless you ask.
+| Mode | What happens |
+|------|----------------|
+| **Autopilot** | Multi-step goals via Claude chat or the extension side panel. Snapshot → Jev next step → act → repeat. |
+| **Guard** | Risky clicks held on every page. Overlay: proceed / block / ask. Autopilot stops if the next step looks irreversible. |
+| **Connect** | One Auto-connect download writes Claude’s `mcpServers.askjev` (full CDP env + key) and `~/.askjev/api-key`. No daily terminal. |
+
+---
+
+## Advanced
+
+Prefer Auto-connect. These are fallbacks only:
+
+- **More ways to connect** in Options — copy Claude/Cursor JSON, or download mac/win/linux scripts manually.
+- **`.mcpb`** Desktop Extension — [docs/MCPB.md](docs/MCPB.md) (legacy pairing-token path).
+- **Protocol / security** — [docs/AGENT-BRIDGE.md](docs/AGENT-BRIDGE.md).
+- **Dev build:** `npm install && npm run build` · `npm test` · `npm run pack:chrome` · `npm run pack:mcpb`
+
+`askjev-mcp` prefers `npx -y askjev-mcp` (public npm). GitHub Release tarball is the no-registry fallback.
+
+---
 
 ## Privacy
 
-- API key: Chrome `storage.sync` only (never over the agent bridge)
-- Pairing token: Chrome sync + Claude/Cursor MCP config env (stdio); never a public URL
-- Network: `https://api.typesafe.ai/*` plus pages you browse; bridge is `127.0.0.1` only
-- No AskJev servers, no analytics backend
+- TypeSafe API key: Chrome `storage.sync`, Claude MCP env, and optionally `~/.askjev/api-key` (mode `600`) — never logged, never sent over the agent bridge.
+- Pairing token: localhost only (`ws://127.0.0.1`).
+- Network: `https://api.typesafe.ai/*` plus pages you browse.
+- No AskJev servers. No analytics backend.
 
-## License
+---
 
-MIT
+## Version
+
+**1.7.1** — Easy Auto-connect (download Connect script + always-on CDP Autopilot).
+
+MIT · [ranjan2829/AskJev](https://github.com/ranjan2829/AskJev)

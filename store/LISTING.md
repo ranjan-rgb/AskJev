@@ -16,14 +16,15 @@ AUTOPILOT — Open the side panel, type a goal, and Jev picks the next click, ty
 
 GUARD — When you hit Pay, Delete, Send, Approve, Deploy, and similar high-impact controls, AskJev freezes the click and asks Jev whether to proceed, block, or ask you. Autopilot also stops if the next step looks irreversible.
 
-AGENT BRIDGE — Connect Claude Desktop or Cursor with one-click Auto-connect in Options. Claude launches the local askjev-mcp bridge (npm). Traffic stays on 127.0.0.1 with a pairing token. Your TypeSafe API key never leaves the extension except to api.typesafe.ai.
+CONNECT — Options → paste TypeSafe API key → Auto-connect downloads AskJev-Connect-Claude (mac/win/linux). Double-click once, quit & reopen Claude, then chat in plain English. AskJev drives Brave/Chrome over CDP; TypeSafe Jev decides on-page. Your API key goes only to api.typesafe.ai.
 
 Not a chat LLM inside the browser. Fast structured decisions from TypeSafe Jev. Built for real production use worldwide.
 
 Setup:
-1. Install AskJev
-2. Options → paste TypeSafe API key
-3. Popup → Open Autopilot — or Options → Auto-connect for Claude
+1. Install AskJev (Load unpacked or store)
+2. Options → paste TypeSafe API key → Auto-connect
+3. Double-click the downloaded Connect script → Quit & reopen Claude
+4. Chat: open example.com and click More information
 
 Privacy: Key in Chrome sync. Page context only to api.typesafe.ai when deciding. Agent bridge is localhost only. No AskJev servers.
 

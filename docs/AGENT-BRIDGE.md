@@ -14,47 +14,34 @@ Connect **Claude Desktop** or **Cursor** to the AskJev browser extension so an a
 
 > A future HTTP/SSE transport (if added) would still be **127.0.0.1 only**. Today’s production path is stdio + localhost WebSocket.
 
-## Happy path — Claude Desktop `.mcpb` (one-click)
+## Happy path — Auto-connect (preferred)
 
-**Preferred.** No daily terminal. No editing JSON by hand.
+**No daily terminal. No paste-JSON. No CDP flags for end users.**
 
-1. Open AskJev **Options** → **Auto-connect** (creates a pairing token + arms the bridge).
-2. In Claude Desktop: **Settings → Extensions → Advanced → Install Extension…** → pick `askjev-1.5.7.mcpb` from the [GitHub release](https://github.com/ranjan2829/AskJev/releases).
-3. When Claude prompts for config, paste the **pairing token** from AskJev Options → Advanced (and confirm port `17373` if asked).
-4. Restart Claude Desktop if needed. AskJev popup shows **Connected** / paired. Tools appear as `askjev_*`.
+1. Load the AskJev Chrome/Brave extension (`extension/`).
+2. **Options** → paste **TypeSafe API key** → **Auto-connect**.
+   - Arms the bridge + token
+   - **Downloads** `AskJev-Connect-Claude.command` / `.bat` / `.sh` for your OS
+   - Also copies MCP JSON to the clipboard as a backup
+3. **Double-click the Connect script once** — writes Claude `mcpServers.askjev` with full CDP env (`ASKJEV_MODE=cdp`, Brave bin, token/port, API key) and `~/.askjev/api-key` (mode `600`).
+4. **Quit & reopen Claude** → chat: `open example.com and click More information`
 
-> Download the `.mcpb` from the latest release assets (`askjev-1.5.7.mcpb`). Keep the Chrome extension loaded and the bridge armed.
+Claude launches `npx -y askjev-mcp`. AskJev drives Brave/Chrome over CDP. TypeSafe Jev decides on-page.
 
 ---
 
-## Fallback — Edit Config JSON / helpers
+## Advanced — paste JSON / `.mcpb` / Cursor
 
-Use this if you are on Cursor, or prefer not to install a Desktop Extension.
+Use only if Auto-connect download is blocked.
 
-### 1. Options → Auto-connect
+### More ways (Options → “More ways to connect”)
 
-1. Open AskJev **Options**.
-2. Under **Connect Claude / Cursor**, click **Auto-connect**.
-   - Creates a pairing token if you don’t have one
-   - Enables the bridge and saves
-   - Copies a ready-to-paste Claude Desktop JSON (token already filled)
-
-### 2. Install the config (pick one)
-
-**A — Download installer (easiest on Mac/Windows)**
-
-- Download `AskJev-Connect-Claude.command` (macOS), `.bat` (Windows), or `.sh` (Linux)
-- Run it once — it merges AskJev into Claude’s config file
-- It prints **Restart Claude Desktop**
-
-**B — Paste JSON**
-
-- Click **Copy Claude Desktop config** or **Copy Cursor MCP config**
-- Paste into:
+- **Claude / Cursor config** — copy JSON and paste into:
   - Claude: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS), `%APPDATA%\Claude\claude_desktop_config.json` (Windows), `~/.config/Claude/claude_desktop_config.json` (Linux)
   - Cursor: `.cursor/mcp.json` or Settings → MCP
+- **Manual platform scripts** — same Connect script as Auto-connect, downloaded on demand
 
-The JSON looks like this (token already filled by Auto-connect):
+Example env (Auto-connect fills these; do not paste secrets into git):
 
 ```json
 {
@@ -64,19 +51,22 @@ The JSON looks like this (token already filled by Auto-connect):
       "args": ["-y", "askjev-mcp"],
       "env": {
         "ASKJEV_TOKEN": "<filled-by-extension>",
-        "ASKJEV_PORT": "17373"
+        "ASKJEV_PORT": "17373",
+        "ASKJEV_MODE": "cdp",
+        "ASKJEV_BROWSER_BIN": "<Brave path>",
+        "ASKJEV_API_KEY": "<TypeSafe key>",
+        "TYPESAFE_API_KEY": "<TypeSafe key>"
       }
     }
   }
 }
 ```
 
-`npx -y askjev-mcp` remains fully supported for Cursor and power users.
+API key resolution in MCP: `ASKJEV_API_KEY` → `TYPESAFE_API_KEY` → `~/.askjev/api-key`.
 
-### 3. Restart Claude / Cursor → Done
+### Legacy `.mcpb`
 
-Quit and reopen the client. Claude launches `askjev-mcp` for you.  
-AskJev Options / popup show **paired** / **Auto**. Tools appear as `askjev_*`.
+Claude Desktop Extension install still works for pairing-token setups — see [docs/MCPB.md](MCPB.md). Prefer Auto-connect for CDP Autopilot.
 
 **No daily terminal. No exporting `ASKJEV_TOKEN` in a shell.**
 
@@ -85,20 +75,24 @@ AskJev Options / popup show **paired** / **Auto**. Tools appear as `askjev_*`.
 ## Architecture
 
 ```
-Claude / Cursor  --stdio MCP-->  askjev-mcp (Node, launched by Claude)
-                                      |
-                                      | WebSocket (automatic)
-                                      | ws://127.0.0.1:17373
-                                      v
-                              AskJev extension (client)
-                                      |
-                                      +--> Autopilot loop / DOM snapshot+act
-                                      +--> Guard (irreversible ≥ 0.65)
+You → Claude (MCP client) → askjev-mcp (CDP Autopilot) → Brave/Chrome
+                                      ↓
+                           TypeSafe Jev System One
 ```
 
-- **MCP process is the WebSocket server** (localhost only).
-- **Extension is the client** — arms when Auto-connect enables the bridge.
-- **WebSocket lives in an MV3 offscreen document** (not the service worker) so RPCs survive SW idle.
+Optional legacy bridge (extension Guard + WS):
+
+```
+Claude / Cursor  --stdio MCP-->  askjev-mcp
+                                      |
+                                      | ws://127.0.0.1:17373 (automatic)
+                                      v
+                              AskJev extension (Guard / side panel)
+```
+
+- **Product path:** CDP Autopilot — Claude talks, askjev-mcp drives the browser, Jev decides.
+- **Extension:** Guard + Options Auto-connect + optional side-panel Autopilot.
+- **WebSocket** (when used) lives in an MV3 offscreen document so RPCs survive SW idle.
 
 ### LaunchAgent bridge-only (Mac)
 
