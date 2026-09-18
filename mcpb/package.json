@@ -1,6 +1,6 @@
 {
   "name": "askjev-mcp-bundle",
-  "version": "1.8.0",
+  "version": "1.7.2",
   "private": true,
   "type": "module",
   "description": "AskJev MCPB package root (Claude Desktop one-click)",
