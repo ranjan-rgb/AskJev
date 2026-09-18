@@ -19,6 +19,7 @@
  *   ASKJEV_MAX_STEPS   autopilot step cap (default 25)
  *   ASKJEV_BROWSER_BIN optional Chrome/Brave binary path (Brave preferred)
  */
+import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -62,6 +63,25 @@ export interface BridgeLike {
   call(method: string, params?: Record<string, unknown>): Promise<unknown>;
   close(): Promise<void>;
 }
+
+/**
+ * Single source of truth for the server version: mcp/package.json.
+ * Resolves the same from src/index.ts and the built dist/index.js — both sit
+ * one level below the package root. Never hardcode a version here; scripts/
+ * check-versions.mjs keeps root, mcp and the extension manifest in lockstep.
+ */
+const VERSION: string = (() => {
+  try {
+    const raw = readFileSync(
+      new URL("../package.json", import.meta.url),
+      "utf8",
+    );
+    const pkg = JSON.parse(raw) as { version?: string };
+    return pkg.version || "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+})();
 
 const NL_DO_DESCRIPTION =
   "REQUIRED for any website or browser request. " +
@@ -244,7 +264,7 @@ async function main(): Promise<void> {
   const server = new McpServer(
     {
       name: "askjev-mcp",
-      version: "1.7.1",
+      version: VERSION,
     },
     {
       instructions:
@@ -570,7 +590,7 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error(
-    `AskJev MCP 1.7.1 stdio ready (mode=${m}) — users speak natural language`,
+    `AskJev MCP ${VERSION} stdio ready (mode=${m}) — users speak natural language`,
   );
 }
 
