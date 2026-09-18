@@ -30,6 +30,16 @@ TypeSafe HTTP handling: `429` and `529` are retried with exponential backoff (ho
 `Retry-After`, 2 retries by default); `401` and `422` fail fast with `unauthorized` /
 `invalid_params`.
 
+The loop also stops itself rather than burning the step budget (and your TypeSafe quota):
+
+- **Low confidence** — when Jev's confidence in a CLICK / TYPE_TEXT / SELECT falls below
+  `ASKJEV_MIN_CONFIDENCE` (default `0.45`), AskJev scrolls for more context instead of
+  clicking blind. After two such probes it stops and says so. Scrolls and waits are never
+  gated — they are the fallback.
+- **Stuck** — the same action on the same target three times, SCROLL_DOWN/SCROLL_UP
+  oscillation, or an unchanged page (URL, title, element list) across four steps all end the
+  run with an actionable note instead of looping to `ASKJEV_MAX_STEPS`.
+
 ### API key
 
 Required for multi-step goals, resolved in order:
@@ -72,6 +82,7 @@ Error codes: `not_paired`, `bridge_offline`, `guard_blocked`, `missing_api_key`,
 | `ASKJEV_CDP_URL` | `http://127.0.0.1:9222` | Existing debug browser to attach to before launching one |
 | `ASKJEV_BROWSER_BIN` | auto-detected (Brave first) | Explicit browser binary path |
 | `ASKJEV_MAX_STEPS` | `25` (capped at 100) | Autopilot step cap |
+| `ASKJEV_MIN_CONFIDENCE` | `0.45` | Confidence floor for page-changing actions; out-of-range values fall back to the default |
 | `ASKJEV_API_KEY` / `TYPESAFE_API_KEY` | — | TypeSafe System One key |
 | `ASKJEV_TOKEN` | — | Pairing token; required only in `bridge` mode (≥ 64 chars) |
 | `ASKJEV_PORT` | `17373` | Legacy bridge port |
