@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   SNAPSHOT_ELEMENT_LIMIT,
   browserCandidates,
+  cdpPort,
 } from "../dist/cdp-browser.js";
 
 describe("browserCandidates", () => {
@@ -60,5 +61,17 @@ describe("browserCandidates", () => {
   it("caps snapshots at a documented limit", () => {
     assert.equal(typeof SNAPSHOT_ELEMENT_LIMIT, "number");
     assert.ok(SNAPSHOT_ELEMENT_LIMIT > 0);
+  });
+});
+
+describe("cdpPort", () => {
+  it("reads the port from ASKJEV_CDP_URL", () => {
+    assert.equal(cdpPort("http://127.0.0.1:9333"), 9333);
+  });
+
+  it("falls back to 9222 for a portless or junk url", () => {
+    assert.equal(cdpPort("http://127.0.0.1"), 9222);
+    assert.equal(cdpPort("not a url"), 9222);
+    assert.equal(cdpPort(""), 9222);
   });
 });

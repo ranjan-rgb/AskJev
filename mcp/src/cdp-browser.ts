@@ -3,7 +3,9 @@
  * Users never touch CDP ports or shell scripts — Claude calls askjev_do,
  * and we attach to an existing debug browser OR launch Chrome/Brave ourselves.
  */
-import { existsSync } from "node:fs";
+import { existsSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   chromium,
   type Browser,
@@ -27,6 +29,70 @@ export const SNAPSHOT_ELEMENT_LIMIT = 80;
 
 function cdpUrl(): string {
   return (process.env.ASKJEV_CDP_URL || "http://127.0.0.1:9222").trim();
+}
+
+/** Debug port to launch on, so other AskJev processes can attach to us. */
+export function cdpPort(url = cdpUrl()): number {
+  try {
+    const p = Number(new URL(url).port);
+    return Number.isInteger(p) && p > 0 ? p : 9222;
+  } catch {
+    return 9222;
+  }
+}
+
+/**
+ * Claude Desktop starts one askjev-mcp per session pool (Chat, Cowork, Code),
+ * so several processes race to open a browser for the same user. Each has its
+ * own module state and cannot see the others, and the loser of the race used to
+ * launch a SECOND browser — which is why one "open google.com" opened the page
+ * twice.
+ *
+ * The lock makes exactly one process launch; the rest wait and attach to it
+ * over CDP. It is advisory and self-healing: a stale lock from a crashed
+ * process is ignored once it ages out.
+ */
+const LAUNCH_LOCK_TTL_MS = 30_000;
+
+function launchLockPath(port: number): string {
+  return join(tmpdir(), `askjev-launch-${port}.lock`);
+}
+
+/** Take the launch lock, or report that someone else holds a fresh one. */
+function acquireLaunchLock(port: number): boolean {
+  const p = launchLockPath(port);
+  try {
+    writeFileSync(p, String(process.pid), { flag: "wx" });
+    return true;
+  } catch {
+    try {
+      const age = Date.now() - statSync(p).mtimeMs;
+      if (age > LAUNCH_LOCK_TTL_MS) {
+        // Previous holder died mid-launch — reclaim it.
+        writeFileSync(p, String(process.pid));
+        return true;
+      }
+    } catch {
+      /* vanished between calls — let the caller retry the connect */
+    }
+    return false;
+  }
+}
+
+function releaseLaunchLock(port: number): void {
+  try {
+    rmSync(launchLockPath(port), { force: true });
+  } catch {
+    /* best effort */
+  }
+}
+
+async function tryConnect(timeoutMs = 1_500): Promise<Browser | null> {
+  try {
+    return await chromium.connectOverCDP(cdpUrl(), { timeout: timeoutMs });
+  } catch {
+    return null;
+  }
 }
 
 let browser: Browser | null = null;
@@ -95,13 +161,14 @@ export function browserCandidates(
 export async function ensureBrowser(): Promise<Browser> {
   if (browser?.isConnected()) return browser;
 
-  // Optional: already-running debug browser (power users / our launcher). Silent.
-  try {
-    browser = await chromium.connectOverCDP(cdpUrl(), { timeout: 1_500 });
+  // Already-running debug browser — ours from an earlier launch, another
+  // askjev-mcp process, or a power user's. Silent.
+  const attached = await tryConnect();
+  if (attached) {
+    browser = attached;
     launchedByMcp = false;
+    ownContext = null;
     return browser;
-  } catch {
-    /* launch ourselves */
   }
 
   const executablePath = findSystemBrowser();
@@ -111,19 +178,43 @@ export async function ensureBrowser(): Promise<Browser> {
     );
   }
 
-  browser = await chromium.launch({
-    headless: false,
-    executablePath,
-    args: [
-      "--disable-blink-features=AutomationControlled",
-      "--no-first-run",
-      "--no-default-browser-check",
-    ],
-  });
-  launchedByMcp = true;
-  ownContext = await browser.newContext();
-  await ownContext.newPage();
-  return browser;
+  const port = cdpPort();
+  if (!acquireLaunchLock(port)) {
+    // Another process is mid-launch. Wait for its browser instead of opening
+    // a second one on top of the user's screen.
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      const shared = await tryConnect(1_000);
+      if (shared) {
+        browser = shared;
+        launchedByMcp = false;
+        ownContext = null;
+        return browser;
+      }
+    }
+    // The other process never came up — fall through and launch ourselves.
+  }
+
+  try {
+    browser = await chromium.launch({
+      headless: false,
+      executablePath,
+      args: [
+        // Expose the port so sibling askjev-mcp processes attach here rather
+        // than launching their own window.
+        `--remote-debugging-port=${port}`,
+        "--disable-blink-features=AutomationControlled",
+        "--no-first-run",
+        "--no-default-browser-check",
+      ],
+    });
+    launchedByMcp = true;
+    ownContext = await browser.newContext();
+    await ownContext.newPage();
+    return browser;
+  } finally {
+    releaseLaunchLock(port);
+  }
 }
 
 /** @deprecated use ensureBrowser — kept name for callers */
