@@ -13,6 +13,7 @@ import {
   guardJevTimeoutMessage,
   isPassThroughActive,
   passThroughUntilFrom,
+  resolveGuardVerdict,
 } from "./guard-policy.js";
 
 type SettingsCache = {
@@ -393,12 +394,23 @@ if (!window.__askjevLoaded) {
 
         const decision = resp.result?.answers ?? null;
         const choice = decision?.action?.choice;
-        const irr = Number(decision?.irreversible?.noul ?? 0);
-        const conf = Number(decision?.action?.confidence ?? 0);
 
-        if (choice === "proceed" && conf >= 0.45 && irr < 0.55) {
+        const wantConfirm =
+          resp.settings?.requireConfirmOnAsk === true ||
+          settingsCache.requireConfirmOnAsk === true;
+        const verdict = resolveGuardVerdict({
+          choice,
+          irreversible: decision?.irreversible?.noul,
+          confidence: decision?.action?.confidence,
+          requireConfirmOnAsk: wantConfirm,
+        });
+
+        if (verdict.outcome === "allow") {
           stat("proceeded");
-          if (resp.settings?.showOverlayOnProceed) {
+          if (
+            verdict.reason === "confident_proceed" &&
+            resp.settings?.showOverlayOnProceed
+          ) {
             showOverlay({
               label,
               decision,
@@ -413,13 +425,16 @@ if (!window.__askjevLoaded) {
           return;
         }
 
-        if (choice === "block" || (choice === "ask" && irr >= 0.65)) {
+        if (verdict.outcome === "block") {
           stat("blocked");
           showOverlay({
             label,
             decision,
             statusText: "blocked",
-            error: choice === "block" ? "Jev hard-blocked this click." : undefined,
+            error:
+              verdict.reason === "jev_block"
+                ? "Jev hard-blocked this click."
+                : undefined,
             onAllow: () => {
               stat("proceeded");
               fireClick(clickable);
@@ -429,22 +444,14 @@ if (!window.__askjevLoaded) {
           return;
         }
 
-        // Quiet default: soft "ask" with low irreversible does not freeze the page
-        const wantConfirm =
-          resp.settings?.requireConfirmOnAsk === true ||
-          settingsCache.requireConfirmOnAsk === true;
-        if (!wantConfirm && irr < 0.65) {
-          stat("proceeded");
-          hideOverlay();
-          fireClick(clickable);
-          return;
-        }
-
         stat("asked");
         showOverlay({
           label,
           decision,
           statusText: "confirm",
+          error: verdict.reason.startsWith("unreadable")
+            ? "Jev's answer could not be read — confirm manually."
+            : undefined,
           onAllow: () => {
             stat("proceeded");
             fireClick(clickable);

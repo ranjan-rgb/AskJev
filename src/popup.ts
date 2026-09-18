@@ -1,12 +1,19 @@
-function setText(id: string, text: string): void {
-  const el = document.getElementById(id);
-  if (el) el.textContent = text;
+/** Layout classes the state dot keeps across every state change. */
+const DOT_BASE = "dot mt-[5px] shrink-0";
+
+/** One readiness sentence + the dot that colours it. */
+function setState(kind: "ok" | "warn" | "off", message: string): void {
+  const dot = document.getElementById("stateDot");
+  if (dot) dot.className = DOT_BASE + (kind === "off" ? "" : ` ${kind}`);
+  const text = document.getElementById("stateText");
+  if (text) text.textContent = message;
 }
 
-function setDot(id: string, kind: "ok" | "warn" | "off"): void {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.className = "dot" + (kind === "off" ? "" : ` ${kind}`);
+/** Exactly one button is highlighted — the next click the user should make. */
+function setPrimary(id: "auto" | "opts" | null): void {
+  for (const btn of ["auto", "opts"] as const) {
+    document.getElementById(btn)?.classList.toggle("aj-btn-primary", btn === id);
+  }
 }
 
 async function loadPopup(): Promise<void> {
@@ -15,18 +22,8 @@ async function loadPopup(): Promise<void> {
   const en = document.getElementById("en") as HTMLButtonElement;
   en.classList.toggle("on", armed);
   en.setAttribute("aria-pressed", armed ? "true" : "false");
-  setText("armLabel", armed ? "Autopilot ready" : "Autopilot off");
-
-  setText("b", String(s.stats?.blocked || 0));
-  setText("a", String(s.stats?.asked || 0));
-  setText("p", String(s.stats?.proceeded || 0));
 
   const hasKey = Boolean(s.apiKey && String(s.apiKey).trim());
-  setText("key", hasKey ? "Ready" : "Add in Settings");
-  setDot("keyDot", hasKey ? "ok" : "warn");
-  const warn = document.getElementById("warn");
-  if (warn) warn.classList.toggle("show", !hasKey);
-
   const bridgeOn = Boolean(s.bridgeEnabled);
   const token = Boolean(s.bridgeToken && String(s.bridgeToken).trim());
   let paired = false;
@@ -37,27 +34,23 @@ async function loadPopup(): Promise<void> {
     /* ignore */
   }
 
-  const connectHint = document.getElementById("connectHint");
-  if (connectHint) {
-    connectHint.style.display = paired ? "none" : "";
-  }
-
-  if (paired) {
-    setText("bridge", "Connected");
-    setDot("bridgeDot", "ok");
-  } else if (bridgeOn && token) {
-    setText("bridge", "Waiting for Claude");
-    setDot("bridgeDot", "warn");
-  } else if (bridgeOn) {
-    setText("bridge", "Needs token");
-    setDot("bridgeDot", "warn");
+  // Worst blocker first: the sentence always names the single thing standing in the way.
+  if (!armed) {
+    setState("off", "AskJev is off. Flip the switch above to let Claude drive this browser.");
+    setPrimary(null);
+  } else if (!hasKey) {
+    setState("warn", "No TypeSafe API key yet. Add it in Settings to arm Autopilot and Guard.");
+    setPrimary("opts");
+  } else if (!bridgeOn || !token) {
+    setState("warn", "Claude is not connected. Run Auto-connect in Settings, then restart Claude.");
+    setPrimary("opts");
+  } else if (!paired) {
+    setState("warn", "Waiting for Claude. Restart Claude, then ask it to use this browser.");
+    setPrimary("opts");
   } else {
-    setText("bridge", "Off");
-    setDot("bridgeDot", "off");
+    setState("ok", "Ready. Claude can drive this browser — Guard holds irreversible clicks.");
+    setPrimary("auto");
   }
-
-  setText("mode", bridgeOn ? "Agent + Guard" : "Guard");
-  setDot("modeDot", "ok");
 }
 
 document.getElementById("en")!.addEventListener("click", () => {
