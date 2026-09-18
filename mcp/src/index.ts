@@ -227,7 +227,7 @@ async function main(): Promise<void> {
   const server = new McpServer(
     {
       name: "askjev-mcp",
-      version: "1.6.3",
+      version: "1.6.4",
     },
     {
       instructions:
@@ -367,7 +367,7 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error(
-    `AskJev MCP 1.6.3 stdio ready (mode=${m}) — users speak natural language`,
+    `AskJev MCP 1.6.4 stdio ready (mode=${m}) — users speak natural language`,
   );
 }
 
