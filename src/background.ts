@@ -182,6 +182,7 @@ async function runAutopilot(goal: string, typeText?: string): Promise<void> {
           state: snap.state as string,
           elements: snap.elements as import("./dom.js").DomElement[],
           model: settings.model,
+          step,
         }),
         new Promise<never>((_, rej) =>
           setTimeout(() => rej(new Error("jev_timeout_15s")), 15000),

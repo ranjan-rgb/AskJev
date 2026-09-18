@@ -26,7 +26,7 @@ await esbuild.build({
 const manifest = {
   manifest_version: 3,
   name: "AskJev",
-  version: "1.5.2",
+  version: "1.5.3",
   description:
     "Jev autopilot for any website — plus a guard on irreversible clicks. Connect Claude/Cursor via MCP agent bridge.",
   permissions: ["storage", "alarms", "sidePanel", "activeTab", "tabs"],

@@ -25,6 +25,8 @@ export async function decideNextStep(input: {
   state: string;
   elements: DomElement[];
   model?: string;
+  /** 1-based autopilot step — used to block premature DONE on step 1. */
+  step?: number;
 }): Promise<AutopilotDecision> {
   const criteria: Record<string, string> = {
     CLICK: "Click a visible control to progress the goal",
@@ -52,7 +54,7 @@ export async function decideNextStep(input: {
       action: {
         type: "choice",
         instructions:
-          "Pick the single next browser action to advance the user goal. Prefer DONE when finished. Prefer BLOCKED if unsafe or impossible.",
+          "Pick the single next browser action to advance the user goal. Only choose DONE if the goal is visibly complete on this page (e.g. the followers list is already open and readable). Being on a home/feed/profile landing page is NOT done — click the Followers/Profile control next. Prefer BLOCKED if unsafe or impossible.",
         criteria,
       },
       target: {
@@ -68,7 +70,8 @@ export async function decideNextStep(input: {
       },
       goal_done: {
         type: "noul",
-        instructions: "Is the user goal already satisfied on this page?",
+        instructions:
+          "Is the user goal FULLY satisfied by what is already visible? Answer low unless the exact destination UI is on screen (e.g. followers list visible). Home feeds and generic profiles are not enough.",
       },
     },
   };
@@ -102,7 +105,24 @@ export async function decideNextStep(input: {
   }
   const irreversible = Number(a.irreversible?.noul ?? 0);
   const goalDone = Number(a.goal_done?.noul ?? 0);
-  if (goalDone >= 0.85) action = "DONE";
+
+  // Do not abort on step-1 "already done" when Jev also picked a clickable target.
+  // Premature DONE was stopping goals like "check my followers" on the X home feed.
+  if (goalDone >= 0.92 && action === "DONE") {
+    /* keep DONE */
+  } else if (goalDone >= 0.92 && (action === "WAIT" || action === "BLOCKED")) {
+    action = "DONE";
+  } else if (action === "DONE" && targetId != null) {
+    // Model contradicted itself — has a target, so click it instead of stopping.
+    action = "CLICK";
+  } else if (goalDone >= 0.85 && action === "DONE" && targetId != null) {
+    action = "CLICK";
+  }
+
+  if ((input.step ?? 1) <= 1 && action === "DONE") {
+    if (targetId != null) action = "CLICK";
+    else action = "SCROLL_DOWN";
+  }
 
   return {
     action,
