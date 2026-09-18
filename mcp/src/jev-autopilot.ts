@@ -127,6 +127,37 @@ function isPageChanging(action: AutopilotAction): boolean {
   return action === "CLICK" || action === "TYPE_TEXT" || action === "SELECT";
 }
 
+/**
+ * Check a Jev-chosen target against the snapshot it was chosen from.
+ *
+ * Jev can name an element id that is not in the current snapshot — the page
+ * re-rendered mid-decision, or it simply picked outside the offered range.
+ * act() would then sit on Playwright's 10s locator timeout before failing, so
+ * one bad id costs ten seconds and a step. Catching it here turns that into an
+ * immediate retry with the miss recorded in history, which is also the signal
+ * Jev needs to stop choosing it again.
+ */
+export function validateTarget(
+  action: AutopilotAction,
+  targetId: number | null | undefined,
+  elements: { id: number }[],
+): { ok: true } | { ok: false; note: string } {
+  if (!isPageChanging(action)) return { ok: true };
+  if (targetId == null) {
+    return {
+      ok: false,
+      note: `${action} needs an element but Jev chose none — retrying with a fresh snapshot`,
+    };
+  }
+  if (!elements.some((e) => e.id === targetId)) {
+    return {
+      ok: false,
+      note: `${action} target #${targetId} is not on the page (snapshot has ${elements.length} elements) — retrying with a fresh snapshot`,
+    };
+  }
+  return { ok: true };
+}
+
 /** Identity of one decision, so repeats are comparable across steps. */
 export function stepKey(
   action: AutopilotAction,
@@ -517,7 +548,22 @@ async function executeRun(
       } else if (!actAction) {
         steps.push(`skipped unknown action ${decision.action}`);
         continue;
-      } else if (actAction === "TYPE_TEXT") {
+      } else {
+        const valid = validateTarget(
+          decision.action,
+          decision.targetId,
+          snap.elements,
+        );
+        if (!valid.ok) {
+          const note = `step ${step}: ${valid.note}`;
+          steps.push(note);
+          setStatus(note);
+          await sleep(STEP_PAUSE_MS);
+          continue;
+        }
+      }
+
+      if (gate.kind !== "probe" && actAction === "TYPE_TEXT") {
         text = typeText.take();
         if (!text) {
           // Nothing left to type — act() would fill("") and wipe whatever the

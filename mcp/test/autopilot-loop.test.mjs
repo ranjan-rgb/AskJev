@@ -19,6 +19,7 @@ import {
   requestAutopilotStop,
   runJevAutopilot,
   stepKey,
+  validateTarget,
   waitForRun,
 } from "../dist/jev-autopilot.js";
 import { resolveApiKey } from "../dist/jev-client.js";
@@ -267,5 +268,40 @@ describe("runJevAutopilot preconditions", () => {
         else process.env[k] = v;
       }
     }
+  });
+});
+
+describe("validateTarget", () => {
+  const elements = [{ id: 1 }, { id: 2 }, { id: 7 }];
+
+  it("accepts a target present in the snapshot", () => {
+    assert.equal(validateTarget("CLICK", 7, elements).ok, true);
+  });
+
+  it("rejects an id Jev invented", () => {
+    // Playwright would otherwise burn its full 10s locator timeout on this.
+    const r = validateTarget("CLICK", 42, elements);
+    assert.equal(r.ok, false);
+    assert.match(r.note, /#42 is not on the page/);
+    assert.match(r.note, /3 elements/);
+  });
+
+  it("rejects a page-changing action with no target at all", () => {
+    for (const action of ["CLICK", "TYPE_TEXT", "SELECT"]) {
+      const r = validateTarget(action, null, elements);
+      assert.equal(r.ok, false, `${action} must require a target`);
+      assert.match(r.note, /chose none/);
+    }
+  });
+
+  it("ignores targets for actions that do not need one", () => {
+    for (const action of ["SCROLL_DOWN", "SCROLL_UP", "WAIT"]) {
+      assert.equal(validateTarget(action, null, elements).ok, true);
+      assert.equal(validateTarget(action, 999, elements).ok, true);
+    }
+  });
+
+  it("rejects every target when the snapshot is empty", () => {
+    assert.equal(validateTarget("CLICK", 1, []).ok, false);
   });
 });
