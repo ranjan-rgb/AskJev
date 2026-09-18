@@ -303,6 +303,35 @@ document.getElementById("revokeToken")!.addEventListener("click", () => {
   })();
 });
 
+
+document.getElementById("savePasteToken")!.addEventListener("click", () => {
+  void (async () => {
+    const token = (
+      document.getElementById("pasteToken") as HTMLInputElement
+    ).value.trim();
+    if (!token) {
+      setStatus("no token to save");
+      return;
+    }
+    (document.getElementById("bridgeEnabled") as HTMLInputElement).checked =
+      true;
+    const port = await getBridgePort();
+    await chrome.storage.sync.set({
+      bridgeToken: token,
+      bridgeEnabled: true,
+      bridgePort: port || 17373,
+    });
+    setBridgeTokenDisplay(token);
+    (document.getElementById("pasteToken") as HTMLInputElement).value = "";
+    setStatus("token saved");
+    setAutoLine(
+      "Bridge armed — restart Claude/Cursor to auto-launch MCP",
+      true,
+    );
+    await refreshBridgeStatus();
+  })();
+});
+
 setInterval(() => {
   void refreshBridgeStatus();
 }, 3000);
