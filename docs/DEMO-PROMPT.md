@@ -1,6 +1,8 @@
 # AskJev demo prompt (video)
 
-Copy-paste into Claude Desktop after **Options → Auto-connect → double-click Connect script → Quit & reopen Claude**.
+Copy-paste into Claude Desktop after **Options → paste TypeSafe API key → Auto-connect → double-click Connect script → Quit & reopen Claude**.
+
+Both prompts are multi-step, so they need a TypeSafe API key — without one AskJev returns `missing_api_key` rather than guessing.
 
 ## Full multi-step (HN → wiki → example)
 

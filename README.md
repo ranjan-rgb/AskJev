@@ -10,12 +10,14 @@ Built with [TypeSafe System One](https://typesafe.ai) — page decisions use Jev
 
 ## Setup (phone-simple)
 
-1. **Load the extension** — Chrome or Brave → Extensions → **Load unpacked** → select `extension/` (or install from the store when listed).
+1. **Load the extension** — Brave or Chrome → Extensions → **Load unpacked** → select `extension/` (or install from the store when listed).
 2. **Options → paste your TypeSafe API key → Auto-connect** — downloads `AskJev-Connect-Claude.command` (mac) / `.bat` (Windows) / `.sh` (Linux).
 3. **Double-click the Connect script once** → **Quit & reopen Claude**.
 4. **Chat:** `open example.com and click More information`
 
-That’s it. Claude launches `askjev-mcp` for you. AskJev opens Brave/Chrome over CDP and runs Autopilot. Your API key goes only to `api.typesafe.ai`.
+That’s it. Claude launches `askjev-mcp` for you. AskJev opens Brave (falling back to Chrome, Chromium, then Edge) and runs Autopilot. Brave is preferred on macOS, Windows, and Linux alike. Your API key goes only to `api.typesafe.ai`.
+
+**Without a TypeSafe API key**, multi-step goals fail loudly with `missing_api_key` and instructions — AskJev never silently navigates and scrolls instead. Single actions (`askjev_navigate`, `askjev_click`, `askjev_read_page`, …) still work without a key.
 
 Get a key: [typesafe.ai](https://typesafe.ai) · Docs: [docs.typesafe.ai](https://docs.typesafe.ai/introduction)
 
@@ -47,7 +49,7 @@ Warm-up: `open example.com and click More information`
 | **askjev-mcp** | MCP stdio server. Auto-launches Brave/Chrome over CDP and runs the Autopilot loop. |
 | **Brave / Chrome** | The browser you see. AskJev drives it. |
 | **TypeSafe Jev (System One)** | On-page decisions: next action, target, irreversible score, goal-done. |
-| **AskJev Guard** | Freezes pay / delete / send / publish / deploy-class clicks until you confirm. |
+| **AskJev Guard** | Freezes pay / delete / send / publish / deploy-class steps at `irreversible ≥ 0.65`. MCP Autopilot stops the run and tells you to narrow the goal; in-page clicks in your own browser get a proceed/block/ask overlay. |
 
 ```
 You → Claude (MCP client) → askjev-mcp (CDP) → Brave/Chrome
@@ -62,8 +64,8 @@ You → Claude (MCP client) → askjev-mcp (CDP) → Brave/Chrome
 | Mode | What happens |
 |------|----------------|
 | **Autopilot** | Multi-step goals via Claude chat or the extension side panel. Snapshot → Jev next step → act → repeat. |
-| **Guard** | Risky clicks held on every page. Overlay: proceed / block / ask. Autopilot stops if the next step looks irreversible. |
-| **Connect** | One Auto-connect download writes Claude’s `mcpServers.askjev` (full CDP env + key) and `~/.askjev/api-key`. No daily terminal. |
+| **Guard** | In **your** browser: risky clicks held on every page (`<all_urls>`, top frame — not iframes). Overlay: proceed / block / ask. In the window askjev-mcp drives: the Autopilot loop stops at `irreversible ≥ 0.65` (that window runs a clean profile without the extension, so the overlay is not there). |
+| **Connect** | The Connect script from Auto-connect writes Claude’s `mcpServers.askjev` (`ASKJEV_MODE=cdp`, Brave bin, token/port, key) and — only when a key was saved — `~/.askjev/api-key`. No daily terminal. |
 
 ---
 
@@ -76,15 +78,15 @@ Prefer Auto-connect. These are fallbacks only:
 - **Protocol / security** — [docs/AGENT-BRIDGE.md](docs/AGENT-BRIDGE.md).
 - **Dev build:** `npm install && npm run build` · `npm test` · `npm run pack:chrome` · `npm run pack:mcpb`
 
-`askjev-mcp` prefers `npx -y askjev-mcp` (public npm). GitHub Release tarball is the no-registry fallback.
+Auto-connect and the copy-JSON buttons both write `npx -y askjev-mcp` (public npm). A GitHub Release tarball URL exists in `src/connect-helpers.ts` (`ASKJEV_MCP_TGZ`) as a no-registry fallback, but no Options button selects it today — swap the `args` by hand if you need it.
 
 ---
 
 ## Privacy
 
 - TypeSafe API key: Chrome `storage.sync`, Claude MCP env, and optionally `~/.askjev/api-key` (mode `600`) — never logged, never sent over the agent bridge.
-- Pairing token: localhost only (`ws://127.0.0.1`).
-- Network: `https://api.typesafe.ai/*` plus pages you browse.
+- Pairing token: legacy WebSocket bridge only, localhost (`ws://127.0.0.1`). The default CDP path never opens that socket.
+- Network: `https://api.typesafe.ai/v1/systemone` — called by the extension (Guard, side-panel Autopilot) and by `askjev-mcp` (CDP Autopilot) — plus pages you browse.
 - No AskJev servers. No analytics backend.
 
 ---

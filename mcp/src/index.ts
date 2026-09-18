@@ -6,9 +6,10 @@
  * Claude calls tools; tools drive the browser. No tool jargon for end users.
  *
  * Control modes (ASKJEV_MODE):
- *   cdp   — Playwright over Chrome DevTools (default when CDP is up)
+ *   cdp    — Playwright over Chrome DevTools. THE DEFAULT, and what Auto-connect
+ *            writes. Never binds the WebSocket bridge.
  *   bridge — legacy extension WebSocket (needs ASKJEV_TOKEN)
- *   auto  — prefer CDP, fall back to bridge (default)
+ *   auto   — prefer CDP, open the bridge too when ASKJEV_TOKEN is present
  *
  * Env:
  *   ASKJEV_CDP_URL     default http://127.0.0.1:9222
@@ -17,7 +18,8 @@
  *   ASKJEV_BRIDGE_ONLY LaunchAgent WS owner (no stdio)
  *   ASKJEV_API_KEY / TYPESAFE_API_KEY  TypeSafe System One key (required for askjev_do multi-step)
  *   ASKJEV_MAX_STEPS   autopilot step cap (default 25)
- *   ASKJEV_BROWSER_BIN optional Chrome/Brave binary path (Brave preferred)
+ *   ASKJEV_MIN_CONFIDENCE  confidence floor for page-changing acts (default 0.45)
+ *   ASKJEV_BROWSER_BIN optional browser binary path (Brave preferred on all platforms)
  */
 import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
