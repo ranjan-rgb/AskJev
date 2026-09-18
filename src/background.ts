@@ -202,8 +202,10 @@ async function closeOffscreen(): Promise<void> {
 
 async function syncBridge(): Promise<void> {
   const settings = await getSettings();
+  // Never tear down offscreen on a "missing settings" read — MV3 SW wakes
+  // (e.g. for askjev.offscreen.rpc) can race chrome.storage and briefly look
+  // unconfigured, which used to closeDocument mid-RPC → Claude bridge_offline.
   if (!settings.bridgeEnabled || !settings.bridgeToken) {
-    await closeOffscreen();
     broadcast({ type: "askjev.bridge.status", bridge: lastBridgeSnap });
     return;
   }
@@ -473,6 +475,12 @@ async function handleBridgeRpc(
 void syncBridge();
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "sync") return;
+  // Only close offscreen when the user explicitly disables the bridge.
+  if (changes.bridgeEnabled && changes.bridgeEnabled.newValue === false) {
+    void closeOffscreen();
+    broadcast({ type: "askjev.bridge.status", bridge: lastBridgeSnap });
+    return;
+  }
   if (
     changes.bridgeEnabled ||
     changes.bridgeToken ||
