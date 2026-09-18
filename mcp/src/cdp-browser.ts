@@ -185,40 +185,22 @@ export type DoGoalResult = {
   note?: string;
 };
 
-export async function doGoal(goal: string): Promise<DoGoalResult> {
+/**
+ * Multi-step TypeSafe Jev Autopilot (System One). Requires ASKJEV_API_KEY /
+ * TYPESAFE_API_KEY — does not silently navigate+scroll without Jev.
+ */
+export async function doGoal(
+  goal: string,
+  typeText?: string,
+): Promise<DoGoalResult> {
+  // Lazy import avoids circular init with jev-autopilot → cdp-browser helpers
+  const { runJevAutopilot } = await import("./jev-autopilot.js");
   const steps: string[] = [];
-  const { page } = await activePage();
   if (launchedByMcp) steps.push("opened Chrome/Brave for you");
-  const nav = extractNavigateUrl(goal);
-
-  if (nav) {
-    steps.push(`navigate ${nav}`);
-    await page.goto(nav, { waitUntil: "domcontentloaded", timeout: 45_000 });
-  } else {
-    steps.push("no URL in goal — using current tab");
-  }
-
-  const lower = goal.toLowerCase();
-  if (/\bscroll down\b/.test(lower)) {
-    await page.mouse.wheel(0, 800);
-    steps.push("scroll down");
-  }
-  if (/\bscroll up\b/.test(lower)) {
-    await page.mouse.wheel(0, -800);
-    steps.push("scroll up");
-  }
-
-  const title = await page.title().catch(() => "");
-  const url = page.url();
-  steps.push(`page title: ${title || "(none)"}`);
-
+  const result = await runJevAutopilot({ goal, typeText });
   return {
-    ok: true,
-    goal,
-    steps,
-    url,
-    title,
-    note: "User spoke naturally. AskJev drove the browser — no scripts or ports for the user.",
+    ...result,
+    steps: [...steps, ...result.steps],
   };
 }
 
