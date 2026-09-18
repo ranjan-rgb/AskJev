@@ -2,9 +2,9 @@
   "manifest_version": "0.3",
   "name": "askjev-mcp",
   "display_name": "AskJev",
-  "version": "1.7.1",
-  "description": "Bridge Claude Desktop to the AskJev browser extension \u2014 Autopilot + Guard over localhost.",
-  "long_description": "AskJev connects Claude Desktop to your Chrome/Brave AskJev extension so Claude can drive the active tab with the same irreversible-click Guard.\n\n1. Install this extension in Claude Desktop.\n2. Paste the pairing token from AskJev Options \u2192 Advanced.\n3. Keep the AskJev Chrome extension open with Agent Bridge armed.\n\nNo daily terminal. Traffic stays on 127.0.0.1.",
+  "version": "1.8.0",
+  "description": "Bridge Claude Desktop to the AskJev browser extension — Autopilot + Guard over localhost.",
+  "long_description": "AskJev connects Claude Desktop to your Chrome/Brave AskJev extension so Claude can drive the active tab with the same irreversible-click Guard.\n\n1. Install this extension in Claude Desktop.\n2. Paste the pairing token from AskJev Options → Advanced.\n3. Keep the AskJev Chrome extension open with Agent Bridge armed.\n\nNo daily terminal. Traffic stays on 127.0.0.1.",
   "author": {
     "name": "Ranjan Shitole",
     "email": "ranjan.shitole3129@gmail.com",
@@ -72,14 +72,14 @@
     "askjev_token": {
       "type": "string",
       "title": "AskJev pairing token",
-      "description": "From AskJev Options \u2192 Advanced \u2192 Copy token (after Auto-connect).",
+      "description": "From AskJev Options → Advanced → Copy token (after Auto-connect).",
       "sensitive": true,
       "required": true
     },
     "askjev_port": {
       "type": "number",
       "title": "Bridge port",
-      "description": "Must match AskJev Options \u2192 Bridge port.",
+      "description": "Must match AskJev Options → Bridge port.",
       "default": 17373,
       "min": 1024,
       "max": 65535,

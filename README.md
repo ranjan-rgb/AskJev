@@ -93,6 +93,6 @@ Auto-connect and the copy-JSON buttons both write `npx -y askjev-mcp` (public np
 
 ## Version
 
-**1.7.1** — Easy Auto-connect (download Connect script + always-on CDP Autopilot).
+**1.8.0** — Correctness pass: System One used as documented (JSON state, structured criteria, retries), Windows browser detection fixed, Guard fails closed, Autopilot stops when stuck.
 
 MIT · [ranjan2829/AskJev](https://github.com/ranjan2829/AskJev)
