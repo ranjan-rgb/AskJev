@@ -1,0 +1,141 @@
+#!/usr/bin/env node
+/**
+ * Pure Autopilot + Guard policy regression tests (no browser, no network).
+ * Bundles src/autopilot-jev.ts + src/guard-policy.ts via esbuild for Node.
+ */
+import { mkdirSync, rmSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import assert from "node:assert/strict";
+import * as esbuild from "esbuild";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const outDir = join(root, ".tmp-test-logic");
+mkdirSync(outDir, { recursive: true });
+
+await esbuild.build({
+  entryPoints: [join(root, "src/autopilot-jev.ts"), join(root, "src/guard-policy.ts")],
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  outdir: outDir,
+  outExtension: { ".js": ".mjs" },
+  logLevel: "silent",
+});
+
+const { applyAutopilotGuards } = await import(
+  join(outDir, "autopilot-jev.mjs")
+);
+const {
+  GUARD_JEV_TIMEOUT_MS,
+  GUARD_DISMISS_PASSTHROUGH_MS,
+  applyGuardDismiss,
+  guardJevTimeoutMessage,
+  isPassThroughActive,
+  passThroughUntilFrom,
+} = await import(join(outDir, "guard-policy.mjs"));
+
+function ok(msg) {
+  console.error("ok:", msg);
+}
+
+// --- Autopilot: force CLICK/SCROLL when goal needs navigation ---
+{
+  const r = applyAutopilotGuards({
+    action: "DONE",
+    targetId: 7,
+    goalDone: 0.99,
+    step: 1,
+  });
+  assert.equal(r.action, "CLICK", "step1 DONE+target → CLICK");
+  assert.equal(r.done, false);
+  ok("step1 DONE with target forces CLICK");
+}
+
+{
+  const r = applyAutopilotGuards({
+    action: "DONE",
+    targetId: null,
+    goalDone: 0.99,
+    step: 1,
+  });
+  assert.equal(r.action, "SCROLL_DOWN", "step1 DONE+no target → SCROLL_DOWN");
+  assert.equal(r.done, false);
+  ok("step1 DONE without target forces SCROLL_DOWN");
+}
+
+{
+  const r = applyAutopilotGuards({
+    action: "DONE",
+    targetId: 3,
+    goalDone: 0.5,
+    step: 2,
+  });
+  assert.equal(r.action, "CLICK", "DONE+target on later step → CLICK");
+  ok("DONE with target forces CLICK after step 1");
+}
+
+{
+  const r = applyAutopilotGuards({
+    action: "DONE",
+    targetId: null,
+    goalDone: 0.95,
+    step: 4,
+  });
+  assert.equal(r.action, "DONE");
+  assert.equal(r.done, true);
+  ok("later-step DONE without target stays DONE when goal_done high");
+}
+
+{
+  const r = applyAutopilotGuards({
+    action: "WAIT",
+    targetId: null,
+    goalDone: 0.95,
+    step: 3,
+  });
+  assert.equal(r.action, "DONE");
+  ok("high goal_done promotes WAIT → DONE");
+}
+
+{
+  const r = applyAutopilotGuards({
+    action: "CLICK",
+    targetId: 1,
+    goalDone: 0.1,
+    step: 1,
+  });
+  assert.equal(r.action, "CLICK");
+  ok("normal CLICK unchanged");
+}
+
+// --- Guard dismiss ---
+{
+  const now = 1_000_000;
+  const d = applyGuardDismiss({ now });
+  assert.equal(d.busy, false);
+  assert.equal(d.passThroughUntil, now + GUARD_DISMISS_PASSTHROUGH_MS);
+  assert.equal(isPassThroughActive(d.passThroughUntil, now + 100), true);
+  assert.equal(
+    isPassThroughActive(d.passThroughUntil, now + GUARD_DISMISS_PASSTHROUGH_MS),
+    false,
+  );
+  ok("Guard dismiss clears busy and arms pass-through");
+}
+
+{
+  assert.ok(
+    GUARD_JEV_TIMEOUT_MS >= 10_000,
+    "Guard Jev timeout should be ≥10s (was flaky at 8s)",
+  );
+  assert.ok(
+    GUARD_JEV_TIMEOUT_MS <= 15_000,
+    "Guard timeout should stay ≤ Autopilot 15s",
+  );
+  assert.match(guardJevTimeoutMessage(), /Dismiss/i);
+  assert.ok(passThroughUntilFrom("allow", 0) > 0);
+  ok("Guard Jev timeout + message policy");
+}
+
+rmSync(outDir, { recursive: true, force: true });
+console.error("\nAll logic checks passed.");
