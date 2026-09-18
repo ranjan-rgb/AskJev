@@ -63,12 +63,6 @@
   .dot.warn {
     @apply bg-amber-200/80;
   }
-  #warn {
-    @apply mb-2 hidden rounded-lg border border-amber-900/50 bg-amber-950/40 px-2.5 py-2 text-2xs text-amber-100/90;
-  }
-  #warn.show {
-    @apply block;
-  }
   .status-pill {
     @apply mt-1.5 inline-block rounded-full border border-zinc-700 px-2 py-0.5 text-2xs tabular-nums text-zinc-400;
   }
