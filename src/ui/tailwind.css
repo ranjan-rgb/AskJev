@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  body {
+    @apply bg-zinc-950 text-zinc-50 font-sans text-13;
+  }
+  :focus {
+    outline: none;
+  }
+  :focus-visible {
+    @apply outline outline-2 outline-offset-1 outline-zinc-300;
+  }
+}
+
+@layer components {
+  .aj-input {
+    @apply w-full rounded-md border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-50 placeholder:text-zinc-500 hover:border-zinc-700 focus:border-zinc-300 focus:shadow-[0_0_0_1px_#d4d4d8];
+  }
+  .aj-btn {
+    @apply inline-flex items-center justify-center rounded-md border border-zinc-800 bg-zinc-900 px-2.5 py-2 text-xs font-semibold text-zinc-50 hover:bg-zinc-850 active:bg-zinc-925 disabled:cursor-not-allowed disabled:opacity-45;
+  }
+  .aj-btn-primary {
+    @apply aj-btn border-zinc-50 bg-zinc-50 text-zinc-950 hover:brightness-95;
+  }
+  .aj-btn-danger {
+    @apply aj-btn border-red-900/60 bg-red-950/40 text-red-200 hover:bg-red-950/70;
+  }
+  .aj-label {
+    @apply mb-1 mt-2 block text-2xs font-medium text-zinc-500;
+  }
+  .aj-panel {
+    @apply flex min-h-0 flex-col overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 p-2.5;
+  }
+  .aj-panel-title {
+    @apply mb-1.5 text-2xs font-semibold uppercase tracking-wide text-zinc-300;
+  }
+  /* popup protection switch — classList.toggle("on") */
+  .switch {
+    @apply relative h-6 w-10 shrink-0 cursor-pointer appearance-none rounded-full border border-zinc-700 bg-zinc-700 transition;
+  }
+  .switch::after {
+    content: "";
+    @apply absolute left-0.5 top-0.5 h-[18px] w-[18px] rounded-full bg-zinc-300 transition;
+  }
+  .switch.on {
+    @apply border-zinc-50 bg-zinc-50;
+  }
+  .switch.on::after {
+    transform: translateX(16px);
+    @apply bg-zinc-950;
+  }
+  .dot {
+    @apply mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-zinc-500 align-middle;
+  }
+  .dot.ok {
+    @apply bg-zinc-300;
+  }
+  .dot.warn {
+    @apply bg-amber-200/80;
+  }
+  #warn {
+    @apply mb-2 hidden rounded-lg border border-amber-900/50 bg-amber-950/40 px-2.5 py-2 text-2xs text-amber-100/90;
+  }
+  #warn.show {
+    @apply block;
+  }
+  .status-pill {
+    @apply mt-1.5 inline-block rounded-full border border-zinc-700 px-2 py-0.5 text-2xs tabular-nums text-zinc-400;
+  }
+  .status-pill.armed {
+    @apply border-zinc-400 text-zinc-300;
+  }
+}
