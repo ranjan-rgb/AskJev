@@ -5,13 +5,28 @@
  * Env:
  *   ASKJEV_TOKEN  (required) pairing token from extension Options
  *   ASKJEV_PORT   (optional) default 17373
+ *
+ * Claude Desktop may spawn this process twice (Chat + Cowork/Code). The first
+ * binds 127.0.0.1:PORT; the second attaches as a controller peer (see BridgeAttach).
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { BridgeServer } from "./bridge-server.js";
+import { BridgeAttach } from "./bridge-attach.js";
+import {
+  BridgeServer,
+  isEaddrInUse,
+  type BridgeStatus,
+} from "./bridge-server.js";
 import { BridgeError } from "./errors.js";
 import { DEFAULT_BRIDGE_PORT } from "./protocol.js";
+
+/** Shared surface for BridgeServer (owner) and BridgeAttach (peer). */
+export interface BridgeLike {
+  getStatus(): BridgeStatus | Promise<BridgeStatus>;
+  call(method: string, params?: Record<string, unknown>): Promise<unknown>;
+  close(): Promise<void>;
+}
 
 function requireToken(): string {
   const token = (process.env.ASKJEV_TOKEN || "").trim();
@@ -65,19 +80,48 @@ function toolOk(result: unknown): {
   };
 }
 
+async function openBridge(
+  token: string,
+  port: number,
+): Promise<BridgeLike> {
+  const owner = new BridgeServer({ token, port, host: "127.0.0.1" });
+  try {
+    await owner.listen();
+    console.error(
+      `AskJev MCP ready — waiting for extension on 127.0.0.1:${port}`,
+    );
+    return owner;
+  } catch (err) {
+    if (!isEaddrInUse(err)) {
+      throw err;
+    }
+    try {
+      await owner.close();
+    } catch {
+      /* ignore partial listen cleanup */
+    }
+    console.error(
+      `AskJev MCP: port ${port} already in use (EADDRINUSE) — attaching as peer controller (Claude Desktop Chat + Cowork/Code double-spawn).`,
+    );
+    const peer = await BridgeAttach.connect({ token, port, host: "127.0.0.1" });
+    console.error(
+      `AskJev MCP ready — attached to existing bridge on 127.0.0.1:${port}`,
+    );
+    return peer;
+  }
+}
+
 async function main(): Promise<void> {
   const token = requireToken();
-  const port = Number(process.env.ASKJEV_PORT || DEFAULT_BRIDGE_PORT) || DEFAULT_BRIDGE_PORT;
+  const port =
+    Number(process.env.ASKJEV_PORT || DEFAULT_BRIDGE_PORT) ||
+    DEFAULT_BRIDGE_PORT;
 
-  const bridge = new BridgeServer({ token, port, host: "127.0.0.1" });
-  await bridge.listen();
-  console.error(
-    `AskJev MCP ready — waiting for extension on 127.0.0.1:${port}`,
-  );
+  const bridge: BridgeLike = await openBridge(token, port);
 
   const server = new McpServer({
     name: "askjev-mcp",
-    version: "1.5.0",
+    version: "1.5.5",
   });
 
   // ---- Mode A: goal-driven autopilot ----
@@ -132,7 +176,7 @@ async function main(): Promise<void> {
     },
     async () => {
       try {
-        const local = bridge.getStatus();
+        const local = await Promise.resolve(bridge.getStatus());
         if (!local.paired) {
           return toolOk({
             ...local,
@@ -190,7 +234,9 @@ async function main(): Promise<void> {
         targetId: z
           .number()
           .optional()
-          .describe("Element id from askjev_snapshot (required for CLICK/TYPE_TEXT/SELECT)"),
+          .describe(
+            "Element id from askjev_snapshot (required for CLICK/TYPE_TEXT/SELECT)",
+          ),
         text: z.string().optional().describe("Text for TYPE_TEXT / SELECT"),
       },
     },
