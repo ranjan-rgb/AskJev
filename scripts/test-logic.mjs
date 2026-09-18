@@ -37,6 +37,8 @@ const {
   guardJevTimeoutMessage,
   isPassThroughActive,
   passThroughUntilFrom,
+  resolveGuardVerdict,
+  GUARD_IRREVERSIBLE_BLOCK,
 } = await import(join(outDir, "guard-policy.mjs"));
 
 function ok(msg) {
@@ -166,6 +168,105 @@ const {
   assert.equal(re.test("Confirm payment"), true);
   assert.equal(re.test("Delete repository"), true);
   ok("quiet Guard defaults + narrow keywords");
+}
+
+{
+  // Guard must never pass a click through on an answer it could not read.
+  const quiet = { requireConfirmOnAsk: false };
+
+  assert.equal(
+    resolveGuardVerdict({ choice: undefined, ...quiet }).outcome,
+    "confirm",
+    "a 200 with no answers must ask, not allow",
+  );
+  assert.equal(
+    resolveGuardVerdict({ choice: "", irreversible: 0, confidence: 0, ...quiet })
+      .outcome,
+    "confirm",
+  );
+  assert.equal(
+    resolveGuardVerdict({ choice: "yolo", irreversible: 0, ...quiet }).outcome,
+    "confirm",
+    "unrecognised choice must ask",
+  );
+  assert.equal(
+    resolveGuardVerdict({
+      choice: "proceed",
+      irreversible: "high",
+      confidence: 0.9,
+      ...quiet,
+    }).outcome,
+    "confirm",
+    "non-numeric score must ask",
+  );
+  assert.equal(
+    resolveGuardVerdict({ choice: "proceed", confidence: 0.9, ...quiet })
+      .outcome,
+    "confirm",
+    "missing irreversible must ask",
+  );
+
+  // Documented behaviour that must not regress.
+  assert.equal(
+    resolveGuardVerdict({
+      choice: "proceed",
+      irreversible: 0.1,
+      confidence: 0.9,
+      ...quiet,
+    }).outcome,
+    "allow",
+  );
+  assert.equal(
+    resolveGuardVerdict({ choice: "block", irreversible: 0.1, confidence: 0.9 })
+      .outcome,
+    "block",
+    "a hard block wins regardless of scores",
+  );
+  assert.equal(
+    resolveGuardVerdict({
+      choice: "ask",
+      irreversible: 0.7,
+      confidence: 0.9,
+      ...quiet,
+    }).outcome,
+    "block",
+    "irreversible >= 0.65 freezes",
+  );
+  assert.equal(
+    resolveGuardVerdict({
+      choice: "ask",
+      irreversible: 0.2,
+      confidence: 0.9,
+      ...quiet,
+    }).outcome,
+    "allow",
+    "quiet default: soft ask below the gate does not freeze the page",
+  );
+  assert.equal(
+    resolveGuardVerdict({
+      choice: "ask",
+      irreversible: 0.2,
+      confidence: 0.9,
+      requireConfirmOnAsk: true,
+    }).outcome,
+    "confirm",
+    "requireConfirmOnAsk opts back into friction",
+  );
+  assert.equal(
+    resolveGuardVerdict({
+      choice: "proceed",
+      irreversible: 0.6,
+      confidence: 0.9,
+      requireConfirmOnAsk: true,
+    }).outcome,
+    "confirm",
+  );
+  assert.equal(
+    GUARD_IRREVERSIBLE_BLOCK,
+    0.65,
+    "product invariant: the freeze gate stays at 0.65",
+  );
+  ok("Guard fails closed on unreadable Jev answers");
 }
 
 rmSync(outDir, { recursive: true, force: true });
