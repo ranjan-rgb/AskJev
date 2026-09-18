@@ -38,8 +38,8 @@ export function findSystemBrowser(): string | null {
   const candidates =
     process.platform === "darwin"
       ? [
-          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
           "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
           "/Applications/Chromium.app/Contents/MacOS/Chromium",
           "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
         ]
