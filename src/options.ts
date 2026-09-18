@@ -52,6 +52,22 @@ async function ensureTokenAndArm(): Promise<{ token: string; port: number }> {
   return { token, port };
 }
 
+
+async function getConnectOpts(): Promise<{
+  token: string;
+  port: number;
+  apiKey?: string;
+}> {
+  const { token, port } = await ensureTokenAndArm();
+  const fromInput = (
+    document.getElementById("apiKey") as HTMLInputElement
+  ).value.trim();
+  const stored = await chrome.storage.sync.get(["apiKey"]);
+  const apiKey = fromInput || String(stored.apiKey || "").trim() || undefined;
+  return { token, port, apiKey };
+}
+
+
 async function refreshBridgeStatus(): Promise<void> {
   const el = document.getElementById("bridgeStatus") as HTMLElement;
   const s = await chrome.storage.sync.get(["bridgeEnabled", "bridgeToken"]);
@@ -174,11 +190,13 @@ document.getElementById("save")!.addEventListener("click", () => {
 
 document.getElementById("autoConnect")!.addEventListener("click", () => {
   void (async () => {
-    const { token, port } = await ensureTokenAndArm();
-    const cfg = buildClientMcpConfig(token, port);
+    const opts = await getConnectOpts();
+    const cfg = buildClientMcpConfig(opts);
     await copyText(
       cfg,
-      "Auto-connected — Claude Desktop config copied (token filled)",
+      opts.apiKey
+        ? "Auto-connected — Claude config copied (token + TypeSafe API key)"
+        : "Auto-connected — Claude Desktop config copied (token filled; save TypeSafe API key for multi-step goals)",
     );
     setAutoLine(
       "Bridge armed — restart Claude/Cursor to auto-launch MCP",
@@ -190,9 +208,9 @@ document.getElementById("autoConnect")!.addEventListener("click", () => {
 
 document.getElementById("copyClaudeConfig")!.addEventListener("click", () => {
   void (async () => {
-    const { token, port } = await ensureTokenAndArm();
+    const opts = await getConnectOpts();
     await copyText(
-      buildClientMcpConfig(token, port),
+      buildClientMcpConfig(opts),
       "Claude Desktop config copied — paste into claude_desktop_config.json",
     );
     setAutoLine(
@@ -205,9 +223,9 @@ document.getElementById("copyClaudeConfig")!.addEventListener("click", () => {
 
 document.getElementById("copyCursorConfig")!.addEventListener("click", () => {
   void (async () => {
-    const { token, port } = await ensureTokenAndArm();
+    const opts = await getConnectOpts();
     await copyText(
-      buildClientMcpConfig(token, port),
+      buildClientMcpConfig(opts),
       "Cursor MCP config copied — paste into .cursor/mcp.json or Settings → MCP",
     );
     setAutoLine(
@@ -220,10 +238,10 @@ document.getElementById("copyCursorConfig")!.addEventListener("click", () => {
 
 document.getElementById("dlMac")!.addEventListener("click", () => {
   void (async () => {
-    const { token, port } = await ensureTokenAndArm();
+    const opts = await getConnectOpts();
     downloadTextFile(
       "AskJev-Connect-Claude.command",
-      buildClaudeMacCommand(token, port),
+      buildClaudeMacCommand(opts),
     );
     setStatus("Downloaded macOS helper — run once, then restart Claude");
     setAutoLine(
@@ -236,10 +254,10 @@ document.getElementById("dlMac")!.addEventListener("click", () => {
 
 document.getElementById("dlWin")!.addEventListener("click", () => {
   void (async () => {
-    const { token, port } = await ensureTokenAndArm();
+    const opts = await getConnectOpts();
     downloadTextFile(
       "AskJev-Connect-Claude.bat",
-      buildClaudeWinBat(token, port),
+      buildClaudeWinBat(opts),
     );
     setStatus("Downloaded Windows helper — run once, then restart Claude");
     setAutoLine(
@@ -252,10 +270,10 @@ document.getElementById("dlWin")!.addEventListener("click", () => {
 
 document.getElementById("dlLinux")!.addEventListener("click", () => {
   void (async () => {
-    const { token, port } = await ensureTokenAndArm();
+    const opts = await getConnectOpts();
     downloadTextFile(
       "AskJev-Connect-Claude.sh",
-      buildClaudeLinuxSh(token, port),
+      buildClaudeLinuxSh(opts),
     );
     setStatus("Downloaded Linux helper — run once, then restart Claude");
     setAutoLine(
