@@ -9,7 +9,7 @@
 
 /** Prefer public npm; GitHub Release tarball is the no-registry fallback. */
 export const ASKJEV_MCP_TGZ =
-  "https://github.com/ranjan2829/AskJev/releases/download/v1.7.1/askjev-mcp-1.7.1.tgz";
+  "https://github.com/ranjan2829/AskJev/releases/download/v1.8.0/askjev-mcp-1.8.0.tgz";
 
 /** Default Brave binary preference for ASKJEV_BROWSER_BIN (macOS first). */
 export function preferredBraveBin(
