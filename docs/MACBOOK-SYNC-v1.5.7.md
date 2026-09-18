@@ -1,5 +1,11 @@
 # MacBook sync — AskJev v1.5.7
 
+> **Historical note — do not follow for setup.** This describes a one-off v1.5.7 machine
+> migration. Current version is **1.7.1** and the product path is CDP Autopilot via
+> Options → Auto-connect ([AGENT-BRIDGE.md](./AGENT-BRIDGE.md)) — no LaunchAgent, no pairing
+> token, no `ASKJEV_BRIDGE_ONLY`. Every version number, artifact path, and step below is
+> stale. Kept only as a record of the offscreen-bridge fix.
+
 Ranjan’s Brave + LaunchAgent setup after the offscreen-bridge fix.
 
 ## What changed
