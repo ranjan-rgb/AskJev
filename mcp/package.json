@@ -1,7 +1,7 @@
 {
   "name": "askjev-mcp",
-  "version": "1.8.0",
-  "description": "AskJev MCP — Claude/Cursor drive the browser from natural language (CDP + optional extension Guard)",
+  "version": "1.7.2",
+  "description": "AskJev MCP \u2014 Claude/Cursor drive the browser from natural language (CDP + optional extension Guard)",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
