@@ -15,3 +15,6 @@ store/askjev-load/
 mcpb/server/**
 !mcpb/server/
 !mcpb/server/.gitkeep
+
+# agent worktrees
+.claude/worktrees/

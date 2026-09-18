@@ -40,6 +40,23 @@ type Pending = {
   timer: ReturnType<typeof setTimeout>;
 };
 
+/** A socket that has connected but not yet proved it holds the pairing token. */
+export const HANDSHAKE_TIMEOUT_MS = 10_000;
+
+/**
+ * Decide whether a WebSocket Origin may talk to the bridge.
+ *
+ * WebSockets are exempt from CORS, so any page the user visits can dial
+ * ws://127.0.0.1:17373 and reach the token check. The token makes that useless
+ * to an attacker, but there is no reason to let a web page get that far: the
+ * only legitimate clients are the extension (chrome-extension:// or
+ * moz-extension://) and local Node peers, which send no Origin at all.
+ */
+export function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return true; // Node peer (another MCP process) — no Origin header.
+  return /^(chrome|moz|safari-web)-extension:\/\//i.test(origin);
+}
+
 /** True when listen failed because the port is already bound. */
 export function isEaddrInUse(err: unknown): boolean {
   return (
@@ -65,6 +82,10 @@ export class BridgeServer {
   private wss: WebSocketServer | null = null;
   private extension: WebSocket | null = null;
   private readonly controllers = new Set<WebSocket>();
+  private readonly handshakeTimers = new Map<
+    WebSocket,
+    ReturnType<typeof setTimeout>
+  >();
   private pending = new Map<string, Pending>();
   private rpcSeq = 0;
   paired = false;
@@ -104,8 +125,28 @@ export class BridgeServer {
         ws.close(1008, "localhost only");
         return;
       }
+      if (!isAllowedOrigin(req.headers.origin)) {
+        ws.close(1008, "origin not allowed");
+        return;
+      }
+
+      // Drop sockets that connect and never authenticate, so an unauthenticated
+      // caller cannot pin open file descriptors indefinitely.
+      const handshake = setTimeout(() => {
+        if (this.extension !== ws && !this.controllers.has(ws)) {
+          ws.close(1008, "handshake timeout");
+        }
+      }, HANDSHAKE_TIMEOUT_MS);
+      handshake.unref?.();
+      this.handshakeTimers.set(ws, handshake);
+
       ws.on("message", (raw) => this.onMessage(ws, raw.toString()));
       ws.on("close", () => {
+        const t = this.handshakeTimers.get(ws);
+        if (t) {
+          clearTimeout(t);
+          this.handshakeTimers.delete(ws);
+        }
         if (this.controllers.has(ws)) {
           this.controllers.delete(ws);
         }
@@ -159,6 +200,8 @@ export class BridgeServer {
     this.failAllPending(
       new BridgeError("bridge_offline", "bridge shutting down"),
     );
+    for (const t of this.handshakeTimers.values()) clearTimeout(t);
+    this.handshakeTimers.clear();
     for (const c of this.controllers) {
       try {
         c.close();
@@ -338,6 +381,14 @@ export class BridgeServer {
     }
   }
 
+  private clearHandshakeTimer(ws: WebSocket): void {
+    const t = this.handshakeTimers.get(ws);
+    if (t) {
+      clearTimeout(t);
+      this.handshakeTimers.delete(ws);
+    }
+  }
+
   private handleHello(
     ws: WebSocket,
     msg: Extract<BridgeMessage, { type: "hello" }>,
@@ -351,6 +402,8 @@ export class BridgeServer {
       ws.close(1008, "unauthorized");
       return;
     }
+
+    this.clearHandshakeTimer(ws);
 
     if (msg.role === "controller") {
       this.controllers.add(ws);
