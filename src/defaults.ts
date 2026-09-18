@@ -78,19 +78,14 @@ export const BASE_KEYWORDS = [
   "terminate",
   "close account",
   "reset",
-  // communicate / commit
-  "send",
-  "submit",
+  // communicate / commit — strong only (not bare "post"/"send" which break X/Twitter etc.)
   "publish",
-  "post",
-  "share",
   "invite",
-  "confirm",
-  "accept",
-  "agree",
   "authorize",
   "approve",
   "grant access",
+  "yes, delete",
+  "permanently",
   // ship / prod
   "deploy",
   "merge",
@@ -100,8 +95,17 @@ export const BASE_KEYWORDS = [
   "execute",
   "run workflow",
   "i understand",
-  "yes, delete",
-  "permanently",
+] as const;
+
+/** Extra gates only for real buttons/submits — not plain navigation links. */
+export const BUTTON_ONLY_KEYWORDS = [
+  "send",
+  "submit",
+  "post",
+  "share",
+  "confirm",
+  "accept",
+  "agree",
 ] as const;
 
 export const DESTRUCTIVE_CLASS_RE =
