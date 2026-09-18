@@ -36,7 +36,7 @@ POST https://api.typesafe.ai/v1/systemone
 Authorization: Bearer <your TypeSafe API key>
 ```
 
-**Claude / Cursor** can be MCP *clients* of AskJev: they call tools; the extension still asks Jev before irreversible work. Your API key lives in Chrome sync storage and is sent only to `api.typesafe.ai`. The pairing token stays on localhost.
+**Claude / Cursor** can be MCP *clients* of AskJev: they call tools; AskJev **auto-launches Brave/Chrome over CDP** and runs a **TypeSafe Jev Autopilot loop** (System One Noul/Choice/Score — not a Claude planner) for multi-step goals. A **TypeSafe API key is required** for multi-step `askjev_do` (set via Options → Auto-connect, which writes `ASKJEV_API_KEY` + `TYPESAFE_API_KEY` into Claude `mcpServers.askjev.env`). Your API key is sent only to `api.typesafe.ai`. The pairing token stays on localhost.
 
 Docs: [docs.typesafe.ai](https://docs.typesafe.ai/introduction) · Bridge: [docs/AGENT-BRIDGE.md](docs/AGENT-BRIDGE.md)
 
@@ -47,7 +47,7 @@ npm install && npm run build
 ```
 
 1. Chrome or Brave → Extensions → **Load unpacked** → select `extension/`
-2. Options → paste your **TypeSafe** API key
+2. Options → paste your **TypeSafe** API key (required for multi-step Autopilot / `askjev_do`)
 3. Popup → **Open Autopilot** (or open the side panel)
 4. Optional Guard demo: `npm run demo` → open `http://localhost:8765` → click Pay / Delete / Send
 5. Optional agent bridge: Options → Auto-connect (see [docs/AGENT-BRIDGE.md](docs/AGENT-BRIDGE.md))
@@ -86,7 +86,7 @@ npm run pack           # legacy zip via pack-extension.mjs
 
 Claude Desktop one-click: [docs/MCPB.md](docs/MCPB.md).
 
-Current version: **1.5.7**
+Current version: **1.7.0**
 
 `askjev-mcp` is shippable on npm (`ranjan3129`) but is **not** published unless you ask.
 

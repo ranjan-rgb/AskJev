@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "askjev-mcp",
   "display_name": "AskJev",
-  "version": "1.5.7",
+  "version": "1.7.0",
   "description": "Bridge Claude Desktop to the AskJev browser extension \u2014 Autopilot + Guard over localhost.",
   "long_description": "AskJev connects Claude Desktop to your Chrome/Brave AskJev extension so Claude can drive the active tab with the same irreversible-click Guard.\n\n1. Install this extension in Claude Desktop.\n2. Paste the pairing token from AskJev Options \u2192 Advanced.\n3. Keep the AskJev Chrome extension open with Agent Bridge armed.\n\nNo daily terminal. Traffic stays on 127.0.0.1.",
   "author": {

@@ -45,9 +45,21 @@ const neon = [
 const brightStatus = [/#4ade80/i, /#22c55e/i, /#fbbf24/i, /#f87171/i];
 for (const name of ["popup.html", "options.html", "sidepanel.html"]) {
   const html = readFileSync(join(root, "extension", name), "utf8");
-  assert.ok(html.includes("--bg: #09090b"), `${name} missing zinc bg`);
-  assert.ok(html.includes("--card: #18181b"), `${name} missing zinc card`);
-  assert.ok(html.includes(":focus-visible"), `${name} missing focus-visible`);
+  // Tailwind zinc ops console (e4f5191+) — CSS vars may live in ui.css
+  const zincOk =
+    html.includes("--bg: #09090b") ||
+    html.includes("bg-zinc-900") ||
+    html.includes("bg-zinc-950");
+  const cardOk =
+    html.includes("--card: #18181b") ||
+    html.includes("border-zinc-800") ||
+    html.includes("bg-zinc-900");
+  assert.ok(zincOk, `${name} missing zinc bg`);
+  assert.ok(cardOk, `${name} missing zinc card`);
+  const focusOk =
+    html.includes(":focus-visible") ||
+    readFileSync(join(root, "extension", "ui.css"), "utf8").includes(":focus-visible");
+  assert.ok(focusOk, `${name} missing focus-visible`);
   for (const re of neon) {
     if (re.test(html)) fail(`${name} matches neon pattern ${re}`);
   }
