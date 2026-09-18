@@ -1,7 +1,7 @@
 {
   "name": "askjev-mcp",
-  "version": "1.5.3",
-  "description": "AskJev MCP bridge \u2014 connect Claude Desktop, Cursor, or any MCP client to the AskJev browser extension over localhost",
+  "version": "1.5.5",
+  "description": "AskJev MCP bridge — connect Claude Desktop, Cursor, or any MCP client to the AskJev browser extension over localhost",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,7 +17,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node bin/askjev-mcp.js",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "npm run build && node --test test/*.test.mjs"
   },
   "engines": {
     "node": ">=18"

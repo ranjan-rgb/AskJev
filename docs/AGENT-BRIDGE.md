@@ -14,7 +14,22 @@ Connect **Claude Desktop** or **Cursor** to the AskJev browser extension so an a
 
 > A future HTTP/SSE transport (if added) would still be **127.0.0.1 only**. Today’s production path is stdio + localhost WebSocket.
 
-## Happy path (average users) — 3 clicks
+## Happy path — Claude Desktop `.mcpb` (one-click)
+
+**Preferred.** No daily terminal. No editing JSON by hand.
+
+1. Open AskJev **Options** → **Auto-connect** (creates a pairing token + arms the bridge).
+2. In Claude Desktop: **Settings → Extensions → Advanced → Install Extension…** → pick `askjev-1.5.5.mcpb` from the [GitHub release](https://github.com/ranjan2829/AskJev/releases).
+3. When Claude prompts for config, paste the **pairing token** from AskJev Options → Advanced (and confirm port `17373` if asked).
+4. Restart Claude Desktop if needed. AskJev popup shows **Connected** / paired. Tools appear as `askjev_*`.
+
+> Download the `.mcpb` from the latest release assets (`askjev-1.5.5.mcpb`). Keep the Chrome extension loaded and the bridge armed.
+
+---
+
+## Fallback — Edit Config JSON / helpers
+
+Use this if you are on Cursor, or prefer not to install a Desktop Extension.
 
 ### 1. Options → Auto-connect
 
@@ -56,6 +71,8 @@ The JSON looks like this (token already filled by Auto-connect):
 }
 ```
 
+`npx -y askjev-mcp` remains fully supported for Cursor and power users.
+
 ### 3. Restart Claude / Cursor → Done
 
 Quit and reopen the client. Claude launches `askjev-mcp` for you.  
@@ -83,6 +100,18 @@ Claude / Cursor  --stdio MCP-->  askjev-mcp (Node, launched by Claude)
 - **Extension is the client** — arms when Auto-connect enables the bridge.
 - TypeSafe API key **never** crosses the bridge; only the extension calls `api.typesafe.ai`.
 
+## Claude Desktop double-spawn (expected)
+
+Claude Desktop can start **two** stdio MCP processes for the same server (Chat + Cowork/Code). Both try to bind `127.0.0.1:17373`.
+
+- **First process** owns the WebSocket bridge (`BridgeServer.listen`).
+- **Second process** sees `EADDRINUSE`, logs an attach message, and connects as a **controller** peer (`BridgeAttach`) — same MCP tools, no second bind, no crash.
+
+This matches the Kapture-style pattern: one WS bridge owner; extra MCP processes attach as peers. You do not need to change Claude config; askjev-mcp ≥ 1.5.5 handles it automatically.
+
+Roles on the wire: `extension` (one Chrome client), `controller` (many peer MCP processes), `mcp` (hello reply from the owner).
+
+
 ## MCP tools
 
 | Tool | Mode | Purpose |
@@ -103,6 +132,7 @@ JSON text frames over WebSocket on `127.0.0.1` only.
 ```json
 { "type": "hello", "token": "<hex>", "role": "extension", "version": "1.0" }
 { "type": "hello", "token": "<hex>", "role": "mcp", "version": "1.0" }
+{ "type": "hello", "token": "<hex>", "role": "controller", "version": "1.0" }
 { "type": "rpc", "id": "rpc_1", "token": "<hex>", "method": "start_goal", "params": { "goal": "…", "typeText": "…" } }
 { "type": "rpc_result", "id": "rpc_1", "ok": true, "result": { "started": true } }
 { "type": "rpc_result", "id": "rpc_1", "ok": false, "error": { "code": "guard_blocked", "message": "…" } }
@@ -168,3 +198,7 @@ npm run build          # extension + mcp
 npm run typecheck
 ASKJEV_TOKEN=… node mcp/bin/askjev-mcp.js
 ```
+
+## Desktop Extension packing
+
+Maintainer notes: [MCPB.md](./MCPB.md).

@@ -2,9 +2,11 @@ import { createServer, type Server as HttpServer } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import { BridgeError } from "./errors.js";
 import {
+  BRIDGE_STATUS_METHOD,
   DEFAULT_BRIDGE_PORT,
   PROTOCOL_VERSION,
   type BridgeMessage,
+  type RpcMessage,
   type RpcResultMessage,
 } from "./protocol.js";
 import { RateLimiter } from "./rate-limit.js";
@@ -18,14 +20,40 @@ export interface BridgeServerOptions {
   rpcTimeoutMs?: number;
 }
 
+export type BridgeStatus = {
+  paired: boolean;
+  port: number;
+  host: string;
+  protocolVersion: string;
+  lastEvent: {
+    event: string;
+    data?: unknown;
+    at: number;
+  } | null;
+  mode?: "server" | "attach";
+  controllers?: number;
+};
+
 type Pending = {
   resolve: (msg: RpcResultMessage) => void;
   reject: (err: Error) => void;
   timer: ReturnType<typeof setTimeout>;
 };
 
+/** True when listen failed because the port is already bound. */
+export function isEaddrInUse(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code: unknown }).code === "EADDRINUSE"
+  );
+}
+
 /**
  * Localhost-only WebSocket server. MCP holds the listener; the extension dials in.
+ * Extra MCP processes (Claude Desktop Chat + Cowork double-spawn) attach as
+ * role:controller peers instead of binding again.
  */
 export class BridgeServer {
   readonly port: number;
@@ -36,6 +64,7 @@ export class BridgeServer {
   private http: HttpServer | null = null;
   private wss: WebSocketServer | null = null;
   private extension: WebSocket | null = null;
+  private readonly controllers = new Set<WebSocket>();
   private pending = new Map<string, Pending>();
   private rpcSeq = 0;
   paired = false;
@@ -77,10 +106,15 @@ export class BridgeServer {
       }
       ws.on("message", (raw) => this.onMessage(ws, raw.toString()));
       ws.on("close", () => {
+        if (this.controllers.has(ws)) {
+          this.controllers.delete(ws);
+        }
         if (this.extension === ws) {
           this.extension = null;
           this.paired = false;
-          this.failAllPending(new BridgeError("bridge_offline", "extension disconnected"));
+          this.failAllPending(
+            new BridgeError("bridge_offline", "extension disconnected"),
+          );
         }
       });
       ws.on("error", () => {
@@ -89,37 +123,72 @@ export class BridgeServer {
     });
 
     await new Promise<void>((resolve, reject) => {
-      http.once("error", reject);
-      http.listen(this.port, this.host, () => resolve());
+      let settled = false;
+      const fail = (err: Error) => {
+        if (settled) return;
+        settled = true;
+        http.off("error", fail);
+        this.wss?.off("error", fail);
+        reject(err);
+      };
+      const ok = () => {
+        if (settled) return;
+        settled = true;
+        http.off("error", fail);
+        this.wss?.off("error", fail);
+        // Persistent handlers so EADDRINUSE / late errors are never unhandled.
+        http.on("error", (err) => {
+          if (!isEaddrInUse(err)) {
+            console.error("AskJev bridge http error:", err);
+          }
+        });
+        this.wss!.on("error", (err) => {
+          if (!isEaddrInUse(err)) {
+            console.error("AskJev bridge wss error:", err);
+          }
+        });
+        resolve();
+      };
+      http.on("error", fail);
+      this.wss!.on("error", fail);
+      http.listen(this.port, this.host, ok);
     });
   }
 
   async close(): Promise<void> {
-    this.failAllPending(new BridgeError("bridge_offline", "bridge shutting down"));
+    this.failAllPending(
+      new BridgeError("bridge_offline", "bridge shutting down"),
+    );
+    for (const c of this.controllers) {
+      try {
+        c.close();
+      } catch {
+        /* ignore */
+      }
+    }
+    this.controllers.clear();
     this.extension?.close();
     this.extension = null;
     this.paired = false;
     await new Promise<void>((resolve) => {
       this.wss?.close(() => resolve());
+      if (!this.wss) resolve();
     });
     await new Promise<void>((resolve) => {
       this.http?.close(() => resolve());
+      if (!this.http) resolve();
     });
   }
 
-  getStatus(): {
-    paired: boolean;
-    port: number;
-    host: string;
-    protocolVersion: string;
-    lastEvent: BridgeServer["lastEvent"];
-  } {
+  getStatus(): BridgeStatus {
     return {
       paired: this.paired,
       port: this.port,
       host: this.host,
       protocolVersion: PROTOCOL_VERSION,
       lastEvent: this.lastEvent,
+      mode: "server",
+      controllers: this.controllers.size,
     };
   }
 
@@ -215,13 +284,53 @@ export class BridgeServer {
       return;
     }
 
-    // MCP does not accept rpc from extension in v1
     if (msg.type === "rpc") {
+      if (this.controllers.has(ws)) {
+        void this.handleControllerRpc(ws, msg);
+        return;
+      }
       this.send(ws, {
         type: "rpc_result",
         id: msg.id,
         ok: false,
-        error: { code: "unauthorized", message: "extension cannot call mcp rpc" },
+        error: {
+          code: "unauthorized",
+          message: "extension cannot call mcp rpc",
+        },
+      });
+    }
+  }
+
+  private async handleControllerRpc(
+    ws: WebSocket,
+    msg: RpcMessage,
+  ): Promise<void> {
+    try {
+      if (msg.method === BRIDGE_STATUS_METHOD) {
+        this.send(ws, {
+          type: "rpc_result",
+          id: msg.id,
+          ok: true,
+          result: this.getStatus(),
+        });
+        return;
+      }
+      const result = await this.call(msg.method, msg.params);
+      this.send(ws, {
+        type: "rpc_result",
+        id: msg.id,
+        ok: true,
+        result,
+      });
+    } catch (err) {
+      const code =
+        err instanceof BridgeError ? err.code : ("internal" as const);
+      const message = err instanceof Error ? err.message : String(err);
+      this.send(ws, {
+        type: "rpc_result",
+        id: msg.id,
+        ok: false,
+        error: { code, message },
       });
     }
   }
@@ -239,15 +348,28 @@ export class BridgeServer {
       ws.close(1008, "unauthorized");
       return;
     }
+
+    if (msg.role === "controller") {
+      this.controllers.add(ws);
+      this.send(ws, {
+        type: "hello",
+        token: this.token,
+        role: "mcp",
+        version: PROTOCOL_VERSION,
+      });
+      return;
+    }
+
     if (msg.role !== "extension") {
       this.send(ws, {
         type: "error",
         code: "unauthorized",
-        message: "expected role extension",
+        message: "expected role extension or controller",
       });
       ws.close(1008, "unauthorized");
       return;
     }
+
     if (this.extension && this.extension !== ws) {
       try {
         this.extension.close(1000, "replaced");

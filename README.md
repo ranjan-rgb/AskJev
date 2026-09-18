@@ -19,9 +19,11 @@ Allowlist is the only opt-out. There is no AskJev backend.
 
 ## Connect Claude / Cursor (no terminal)
 
+**Preferred (Claude Desktop):** install `askjev-*.mcpb` from the GitHub release, then paste the pairing token from Options → Advanced.
+
 1. **Options → Auto-connect** (creates token, arms bridge, copies config)
-2. **Paste JSON** *or* **download** `AskJev-Connect-Claude.command` / `.bat` / `.sh` and run once
-3. **Restart Claude / Cursor** — they launch `npx -y askjev-mcp` for you
+2. **Install `.mcpb`** *or* **Paste JSON** *or* **download** `AskJev-Connect-Claude.command` / `.bat` / `.sh` and run once
+3. **Restart Claude / Cursor** — they launch the bridge for you
 
 There is **no URL to paste**. The only network path is local `ws://127.0.0.1` between askjev-mcp and the extension. Details: [docs/AGENT-BRIDGE.md](docs/AGENT-BRIDGE.md)
 
@@ -67,17 +69,24 @@ demo/                Local checkout page for Guard
 store/LISTING.md     Chrome Web Store copy draft
 docs/AGENT.md        Notes for agents extending AskJev
 docs/AGENT-BRIDGE.md Protocol, security, Claude/Cursor snippets
+docs/MCPB.md         Claude Desktop .mcpb packing + install
+mcpb/                Desktop Extension source (pack → .mcpb)
 ```
 
 ## Build / ship
 
 ```bash
 npm run typecheck
+npm test               # extension zinc/HTML + mcp double-spawn
 npm run build          # → extension/ + mcp/dist
-npm run pack           # zip for store (see store/)
+npm run pack:chrome    # store/askjev-chrome-<ver>.zip
+npm run pack:mcpb      # store/askjev-<ver>.mcpb (Claude Desktop)
+npm run pack           # legacy zip via pack-extension.mjs
 ```
 
-Current version: **1.5.0**
+Claude Desktop one-click: [docs/MCPB.md](docs/MCPB.md).
+
+Current version: **1.5.5**
 
 `askjev-mcp` is shippable on npm (`ranjan3129`) but is **not** published unless you ask.
 

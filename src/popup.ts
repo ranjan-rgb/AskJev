@@ -24,6 +24,8 @@ async function loadPopup(): Promise<void> {
   const hasKey = Boolean(s.apiKey && String(s.apiKey).trim());
   setText("key", hasKey ? "Ready" : "Add in Settings");
   setDot("keyDot", hasKey ? "ok" : "warn");
+  const warn = document.getElementById("warn");
+  if (warn) warn.classList.toggle("show", !hasKey);
 
   const bridgeOn = Boolean(s.bridgeEnabled);
   const token = Boolean(s.bridgeToken && String(s.bridgeToken).trim());
