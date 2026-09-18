@@ -1,4 +1,4 @@
-import { BASE_KEYWORDS, DESTRUCTIVE_CLASS_RE } from "./defaults.js";
+import { BASE_KEYWORDS, BUTTON_ONLY_KEYWORDS, DESTRUCTIVE_CLASS_RE } from "./defaults.js";
 import type { SystemOneResult } from "./jev.js";
 import {
   clearAskjevIds,
@@ -90,6 +90,17 @@ if (!window.__askjevLoaded) {
     const href =
       clickable instanceof HTMLAnchorElement ? clickable.href || "" : "";
     const re = riskRegex();
+    const isPlainNavLink =
+      clickable instanceof HTMLAnchorElement &&
+      clickable.getAttribute("role") !== "button" &&
+      !clickable.closest("form");
+
+    // Never gate plain in-page / site navigation links on weak words.
+    if (isPlainNavLink) {
+      const strong = /(delete|pay|checkout|purchase|withdraw|deploy|revoke|wipe|terminate|close account)/i;
+      return strong.test(label) || strong.test(href);
+    }
+
     if (re.test(label) || re.test(href)) return true;
 
     const className =
@@ -97,6 +108,23 @@ if (!window.__askjevLoaded) {
         ? (clickable as HTMLElement).className
         : "";
     if (DESTRUCTIVE_CLASS_RE.test(className)) return true;
+
+    const isButtonLike =
+      clickable instanceof HTMLButtonElement ||
+      clickable.getAttribute("role") === "button" ||
+      (clickable instanceof HTMLInputElement &&
+        (clickable.type === "submit" || clickable.type === "button"));
+    if (isButtonLike) {
+      const btnRe = new RegExp(
+        "\b(" +
+          [...BUTTON_ONLY_KEYWORDS]
+            .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\$&"))
+            .join("|") +
+          ")\b",
+        "i",
+      );
+      if (btnRe.test(label)) return true;
+    }
 
     const isSubmit =
       (clickable instanceof HTMLInputElement &&
@@ -109,12 +137,12 @@ if (!window.__askjevLoaded) {
       settingsCache.gateFormSubmits === true;
     if (paranoid && isSubmit && inForm) return true;
 
-    // Balanced: gate form submits whose label is empty/generic ("OK", "Yes", "Continue")
     const generic = /^(ok|yes|continue|next|done|save|apply|go)$/i.test(label.trim());
     if (isSubmit && inForm && generic) return true;
 
     return false;
   }
+
 
   function pageSnippet() {
     return {
@@ -211,7 +239,24 @@ if (!window.__askjevLoaded) {
       hideOverlay();
       opts.onBlock();
     };
-    btns.append(allow, block);
+    const dismiss = document.createElement("button");
+    dismiss.className = "block";
+    dismiss.textContent = "Dismiss — keep browsing";
+    dismiss.onclick = () => {
+      hideOverlay();
+      busy = false;
+      passThroughUntil = Date.now() + 1500;
+    };
+    btns.append(allow, block, dismiss);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        hideOverlay();
+        busy = false;
+        passThroughUntil = Date.now() + 1500;
+        window.removeEventListener("keydown", onKey, true);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
     document.documentElement.appendChild(overlayHost);
   }
 
@@ -231,16 +276,33 @@ if (!window.__askjevLoaded) {
       `page_text: ${sn.body}`,
     ].join("\n");
     return new Promise((resolve) => {
+      let settled = false;
+      const done = (v: {
+        ok?: boolean;
+        bypass?: boolean;
+        error?: string;
+        result?: SystemOneResult;
+        settings?: { showOverlayOnProceed?: boolean };
+      }) => {
+        if (settled) return;
+        settled = true;
+        resolve(v);
+      };
+      const timer = window.setTimeout(() => {
+        done({ ok: false, error: "jev_timeout — press Escape or Dismiss to browse" });
+      }, 8000);
       try {
         chrome.runtime.sendMessage({ type: "askjev.decide", state }, (resp) => {
+          window.clearTimeout(timer);
           if (chrome.runtime.lastError) {
-            resolve({ ok: false, error: chrome.runtime.lastError.message });
+            done({ ok: false, error: chrome.runtime.lastError.message });
             return;
           }
-          resolve(resp ?? { ok: false, error: "no_response" });
+          done(resp ?? { ok: false, error: "no_response" });
         });
       } catch (e) {
-        resolve({ ok: false, error: String((e as Error)?.message ?? e) });
+        window.clearTimeout(timer);
+        done({ ok: false, error: String((e as Error)?.message ?? e) });
       }
     });
   }
@@ -272,6 +334,7 @@ if (!window.__askjevLoaded) {
         if (busy) return;
         if (!settingsCache.enabled) return;
         if (hostAllowed(location.hostname)) return;
+        if (!settingsCache.hasKey) return; // don't freeze the web until a key is set
         const t = ev.target;
         if (!(t instanceof Element)) return;
         if (!isRiskTarget(t)) return;

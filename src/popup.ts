@@ -3,9 +3,10 @@ function setText(id: string, text: string): void {
   if (el) el.textContent = text;
 }
 
-function setClass(id: string, className: string): void {
+function setDot(id: string, kind: "ok" | "warn" | "off"): void {
   const el = document.getElementById(id);
-  if (el) el.className = className;
+  if (!el) return;
+  el.className = "dot" + (kind === "off" ? "" : ` ${kind}`);
 }
 
 async function loadPopup(): Promise<void> {
@@ -14,20 +15,18 @@ async function loadPopup(): Promise<void> {
   const en = document.getElementById("en") as HTMLButtonElement;
   en.classList.toggle("on", armed);
   en.setAttribute("aria-pressed", armed ? "true" : "false");
-  en.textContent = armed ? "Armed" : "Disarmed";
+  setText("armLabel", armed ? "Protection on" : "Protection off");
 
   setText("b", String(s.stats?.blocked || 0));
   setText("a", String(s.stats?.asked || 0));
   setText("p", String(s.stats?.proceeded || 0));
 
   const hasKey = Boolean(s.apiKey && String(s.apiKey).trim());
-  setText("key", hasKey ? "Set" : "Missing");
-  setClass("key", hasKey ? "v ok" : "v warn");
+  setText("key", hasKey ? "Ready" : "Add in Settings");
+  setDot("keyDot", hasKey ? "ok" : "warn");
 
   const bridgeOn = Boolean(s.bridgeEnabled);
   const token = Boolean(s.bridgeToken && String(s.bridgeToken).trim());
-  let bridgeLabel = "Off";
-  let bridgeClass = "v bad";
   let paired = false;
   try {
     const resp = await chrome.runtime.sendMessage({ type: "askjev.bridge.status" });
@@ -35,37 +34,29 @@ async function loadPopup(): Promise<void> {
   } catch {
     /* ignore */
   }
+
   if (paired) {
-    bridgeLabel = "Auto";
-    bridgeClass = "v ok";
+    setText("bridge", "Connected");
+    setDot("bridgeDot", "ok");
   } else if (bridgeOn && token) {
-    bridgeLabel = "Armed";
-    bridgeClass = "v ok";
-  } else if (bridgeOn && !token) {
-    bridgeLabel = "No token";
-    bridgeClass = "v warn";
-  }
-  setText("bridge", bridgeLabel);
-  setClass("bridge", bridgeClass);
-
-  // Subtitle under bridge via title attribute on the cell value
-  const bridgeEl = document.getElementById("bridge");
-  if (bridgeEl) {
-    if (paired) bridgeEl.title = "Paired — Claude/Cursor launched askjev-mcp";
-    else if (bridgeOn && token)
-      bridgeEl.title = "Armed — waiting for Claude";
-    else bridgeEl.title = "";
+    setText("bridge", "Waiting for Claude");
+    setDot("bridgeDot", "warn");
+  } else if (bridgeOn) {
+    setText("bridge", "Needs token");
+    setDot("bridgeDot", "warn");
+  } else {
+    setText("bridge", "Off");
+    setDot("bridgeDot", "off");
   }
 
-  setText("mode", bridgeOn ? "Agent" : "Guard");
-  setClass("mode", "v ok");
+  setText("mode", bridgeOn ? "Agent + Guard" : "Guard");
+  setDot("modeDot", "ok");
 }
 
 document.getElementById("en")!.addEventListener("click", () => {
   void (async () => {
     const s = await chrome.storage.sync.get(["enabled"]);
-    const next = !(s.enabled !== false);
-    await chrome.storage.sync.set({ enabled: next });
+    await chrome.storage.sync.set({ enabled: !(s.enabled !== false) });
     await loadPopup();
   })();
 });

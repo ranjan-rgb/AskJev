@@ -136,41 +136,63 @@ async function runAutopilot(goal: string, typeText?: string): Promise<void> {
   autopilotRunning = true;
   setAutopilotStatus("running");
   const maxSteps = 20;
+  const pinnedTabId = await getActiveTabId();
+  if (pinnedTabId == null) {
+    setAutopilotStatus("no active tab — click the page tab, then Run");
+    autopilotRunning = false;
+    return;
+  }
   for (let step = 1; step <= maxSteps && autopilotRunning; step++) {
-    const tabId = await getActiveTabId();
-    if (tabId == null) {
-      setAutopilotStatus("no active tab");
-      break;
-    }
+    const tabId = pinnedTabId;
     broadcast({
       type: "askjev.autopilot.log",
       line: `step ${step}: snapshot`,
     });
     bridgeClient.emit("autopilot_log", { line: `step ${step}: snapshot` });
-    const snap = await chrome.tabs.sendMessage(tabId, {
-      type: "askjev.dom.snapshot",
-      goal,
-    });
+    let snap: { ok?: boolean; error?: string; state?: string; elements?: unknown } | undefined;
+    try {
+      snap = await chrome.tabs.sendMessage(tabId, {
+        type: "askjev.dom.snapshot",
+        goal,
+      });
+    } catch (e) {
+      const line = `snapshot failed: ${(e as Error).message || "no content script — refresh the page"}`;
+      broadcast({ type: "askjev.autopilot.log", line });
+      bridgeClient.emit("autopilot_log", { line });
+      setAutopilotStatus("refresh the page, then Run again");
+      break;
+    }
     if (!snap?.ok) {
       const line = `snapshot failed: ${snap?.error || "unknown"}`;
       broadcast({ type: "askjev.autopilot.log", line });
       bridgeClient.emit("autopilot_log", { line });
+      setAutopilotStatus("snapshot failed");
       break;
     }
 
+    broadcast({
+      type: "askjev.autopilot.log",
+      line: `step ${step}: asking jev…`,
+    });
     let decision;
     try {
-      decision = await decideNextStep({
-        apiKey: settings.apiKey,
-        state: snap.state,
-        elements: snap.elements,
-        model: settings.model,
-      });
+      decision = await Promise.race([
+        decideNextStep({
+          apiKey: settings.apiKey,
+          state: snap.state as string,
+          elements: snap.elements as import("./dom.js").DomElement[],
+          model: settings.model,
+        }),
+        new Promise<never>((_, rej) =>
+          setTimeout(() => rej(new Error("jev_timeout_15s")), 15000),
+        ),
+      ]);
     } catch (e) {
       await bumpStat("errors");
       const line = `jev error: ${(e as Error).message}`;
       broadcast({ type: "askjev.autopilot.log", line });
       bridgeClient.emit("autopilot_log", { line });
+      setAutopilotStatus("jev error — check API key / network");
       break;
     }
 
