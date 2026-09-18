@@ -1,11 +1,12 @@
 {
   "name": "askjev-mcp-bundle",
-  "version": "1.8.0",
+  "version": "1.7.2",
   "private": true,
   "type": "module",
   "description": "AskJev MCPB package root (Claude Desktop one-click)",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "playwright-core": "^1.49.1",
     "ws": "^8.18.0",
     "zod": "^3.25.0"
   }
